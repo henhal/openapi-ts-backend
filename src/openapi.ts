@@ -87,6 +87,19 @@ function transform<T, U>(x: T | Array<T>, func: (x: T) => U): U | Array<U> {
   return Array.isArray(x) ? x.map(func) : func(x);
 }
 
+import Ajv from 'ajv';
+// TODO use new Ajv({coerceTypes}), build a full schema of all headers/query/path params and run ajv on it?
+
+function foo({parameters}: OpenAPI.Operation, specTarget: string) {
+  if (parameters) {
+    //return parameters.filter(p => 'in' in p && p.in === specTarget && 'schema' in p).map(p => p.schema);
+    return {
+      type: 'object',
+      properties: Object.fromEntries((parameters as any[]).filter(p => p.in === specTarget && p.schema).map(p => [p.name, p.schema]))
+    };
+  }
+}
+
 function parseParameters(params: RawParams, schemaResolver: SchemaResolver): Params {
   return Object.fromEntries(Object.entries(params).map(([k, v]) => {
     const schema = schemaResolver(k);

@@ -1,9 +1,9 @@
 import * as OpenAPI from "openapi-backend";
-import * as Ajv from "ajv";
+import {ErrorObject} from "ajv";
 
 import {PendingRawResponse, RawRequest, RawResponse, Request, Response} from "./types";
 
-function formatValidationError(error: Ajv.ErrorObject) {
+function formatValidationError(error: ErrorObject) {
   return `At '${error.dataPath}': ${Object.entries(error.params)
       .map(([k, v]) => `${k}: ${JSON.stringify(v)}`)
       .join(', ')}`;

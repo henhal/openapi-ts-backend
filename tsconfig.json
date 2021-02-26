@@ -67,7 +67,7 @@
   "exclude": [
 //    "./test/**",
 //    "./tools/**",
-//    "./dist/**",
+    "./dist/**",
     "./examples/**"
   ]
 }

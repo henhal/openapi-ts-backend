@@ -5,6 +5,11 @@ import {writeFileSync, mkdirSync, existsSync} from 'fs';
 import path from 'path';
 const [inputFile, outputDir] = process.argv.slice(2);
 
+if (!inputFile || !outputDir) {
+  console.error(`Usage: typegen.ts <path to OpenAPI document> <output directory>`);
+  process.exit(1);
+}
+
 function write(dirName: string, fileName: string, data: string) {
   const outputPath = path.resolve(dirName, fileName);
 

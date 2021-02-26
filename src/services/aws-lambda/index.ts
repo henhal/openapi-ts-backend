@@ -1,1 +1,1 @@
-export * from './LambdaOpenApi';
+export * from './lambda-openapi';
