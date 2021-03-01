@@ -1,0 +1,20 @@
+import {OperationHandler, Params, Request, Response} from 'openapi-ts-backend';
+import {operations} from './spec';
+import {RequestBody, RequestHeaders, RequestPathParams, RequestQuery, ResponseBody, ResponseHeaders} from './helpers';
+
+export type OperationRequest<OperationId extends keyof operations> =
+    Request<
+        RequestBody<OperationId>,
+        Params & RequestPathParams<OperationId>,
+        Params & RequestQuery<OperationId>,
+        Params & RequestHeaders<OperationId>>;
+
+export type OperationResponse<OperationId extends keyof operations> =
+    Response<
+        ResponseBody<OperationId>,
+        Params & ResponseHeaders<OperationId>>;
+
+export type Operation<P, OperationId extends keyof operations> =
+    OperationHandler<P,
+        OperationRequest<OperationId>,
+        OperationResponse<OperationId>>;
