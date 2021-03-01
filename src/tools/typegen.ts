@@ -1,8 +1,11 @@
 import * as ts from 'typescript';
-import {dereference} from '@apidevtools/json-schema-ref-parser';
+import * as yaml from 'js-yaml';
 import generateOpenApiTypes from 'openapi-typescript';
-import {writeFileSync, mkdirSync, existsSync} from 'fs';
+import {readFileSync, writeFileSync, mkdirSync, existsSync} from 'fs';
 import path from 'path';
+
+const YAML_EXTENSION = /\.ya?ml$/;
+
 const [inputFile, outputDir] = process.argv.slice(2);
 
 if (!inputFile || !outputDir) {
@@ -19,7 +22,8 @@ function write(dirName: string, fileName: string, data: string) {
 }
 
 async function createSpecTypes(specPath: string, outputDir: string) {
-  const schema = await dereference(specPath);
+  const raw = readFileSync(specPath).toString();
+  const schema = (YAML_EXTENSION.test(specPath)) ? yaml.load(raw) : JSON.parse(raw);
 
   const ts = generateOpenApiTypes(schema);
 

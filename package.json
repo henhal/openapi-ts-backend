@@ -29,16 +29,16 @@
     "lambda"
   ],
   "dependencies": {
-    "@apidevtools/json-schema-ref-parser": "^9.0.7",
     "ajv": "^7.1.1",
     "aws-lambda": "^1.0.6",
+    "js-yaml": "^4.0.0",
     "openapi-backend": "^3.9.0",
     "openapi-typescript": "^3.0.1",
     "typescript": "^4.2.2"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.72",
-    "@types/json-schema": "^7.0.7",
+    "@types/js-yaml": "^4.0.0",
     "@types/node": "^14.14.31",
     "ts-node": "^9.1.1"
   }
