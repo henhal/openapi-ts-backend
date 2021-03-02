@@ -1,12 +1,12 @@
+import {ErrorObject} from 'ajv';
 import * as OpenAPI from 'openapi-backend';
-import {SetMatchType} from 'openapi-backend';
 
 import * as Errors from './errors';
 import {
   Authorizer,
   Awaitable,
   ErrorHandler,
-  Interceptor,
+  Interceptor, Logger,
   OperationHandler,
   PendingRawResponse,
   RawRequest,
@@ -41,7 +41,7 @@ function toRequest(req: OpenAPI.ParsedRequest, operation: OpenAPI.Operation): Re
     params: parseParameters(req.params, getParametersSchema(operation, 'path')),
     headers: parseParameters(req.headers, getParametersSchema(operation, 'header')),
     query: parseParameters(req.query, getParametersSchema(operation, 'query')),
-    body: req.body
+    body: req.body,
   };
 }
 
@@ -62,99 +62,21 @@ function fromResponse(res: Response, {responses = {}}: OpenAPI.Operation): RawRe
   return {
     statusCode,
     headers: mapObject(headers, oneOrMany(String)),
-    body
+    body,
   };
 }
 
 // Note: Implementation of OpenAPI.Handler - these arguments match the call to api.handleRequest
 type OpenApiHandler<P, T> = (apiContext: OpenAPI.Context, response: PendingRawResponse, params: P) => Awaitable<T>;
 
-function createOpenApiSecurityHandler<P, T>(
-    authorizer: Authorizer<P, T>,
-    name: string
-): OpenApiHandler<P, T> {
-  return async (apiContext, response: PendingRawResponse, params: P) => {
-    console.debug(`Calling authorizer ${name}`);
-
-    return authorizer(apiContext.request, response, {apiContext, ...params});
-  };
-}
-
-function createOpenApiHandler<P>(
-    operationHandler: OperationHandler<P>,
-    operationId: string
-): OpenApiHandler<P, void> {
-  return async (apiContext, response, params) => {
-    const {operation, request} = apiContext;
-    console.debug(`Calling operation ${operationId}`);
-
-    console.debug(`Operation:\n${JSON.stringify(operation, null, 2)}`);
-    // console.debug(`Request:\n${JSON.stringify(request, null, 2)}`);
-    // console.debug(`PendingRawResponse:\n${JSON.stringify(response, null, 2)}`);
-
-    const req = toRequest(request, operation);
-
-    // TODO Should response be copied before re-typed and passed to the operation?
-    //  Currently we broaden the type, pass it to the operation handler, then convert all params to strings and copy
-    //  back to the same object.
-    const res: Response = response;
-
-    console.log(`Calling ${operationId} with req:\n${JSON.stringify(req, null, 2)}\n\n` +
-        `res:\n${JSON.stringify(res, null, 2)}`);
-
-    // Note: The handler function may modify the "res" object and/or return a response body.
-    // If "res.body" is undefined we use the return value as the body.
-    const result = await operationHandler(req, res, {apiContext, ...params});
-    console.log(`operation returned:`, result);
-    res.body = res.body ?? result;
-    console.log(`After operation res:\n${JSON.stringify(res, null, 2)}`);
-    Object.assign(response, fromResponse(res, operation));
-
-    console.log(`After converting response:\n${JSON.stringify(response, null, 2)}`);
-
-    validateResponse(response, operation, apiContext);
-
-    // TODO should we validate the response? statusCode, headers, body?
-  }
-}
-
-function validateResponse(response: Response, operation: OpenAPI.Operation, apiContext: OpenAPI.Context) {
-  const {statusCode, headers, body} = response;
-  let result = apiContext.api.validateResponse(body, operation);
-
-  if (result.errors) {
-    console.warn(`Response body doesn't match schema: ${JSON.stringify(result.errors.map(formatValidationError))}`);
-    // TODO should we throw an error here?
-  }
-
-  result = apiContext.api.validateResponseHeaders(headers, operation, {
-    statusCode,
-    setMatchType: SetMatchType.Superset
-  });
-
-  if (result.errors) {
-    console.warn(`Response headers don't match schema: ${JSON.stringify(result.errors.map(formatValidationError))}`);
-    // TODO should we throw an error here?
-  }
-}
-
-async function initApiAsync<P>(apiOptions: OpenAPI.Options,
-                               operations: Record<string, OperationHandler<P, any, any>>,
-                               authorizers: Record<string, Authorizer<P, any>> = {}) {
-  const api = await new OpenAPI.OpenAPIBackend(apiOptions).init();
-
-  for (const [id, handler] of Object.entries(operations)) {
-    api.registerHandler(id, createOpenApiHandler(handler, id));
-  }
-
-  for (const [scheme, handler] of Object.entries(authorizers)) {
-    api.registerSecurityHandler(scheme, createOpenApiSecurityHandler(handler, scheme));
-  }
-
-  return api;
-}
-
 export type ApiOptions = Pick<OpenAPI.Options, 'ajvOpts' | 'customizeAjv'>;
+
+function createLogger(f: (op: keyof Logger) => Logger[keyof Logger]): Logger {
+  return Object.assign({}, ...['debug', 'info', 'warn', 'error'].map(op => ({[op]: f(op as keyof Logger)})));
+}
+
+const consoleLogger: Logger = createLogger(op => (msg: string, ...args: any[]) =>  console[op](`${op}: ${msg}`, ...args));
+const noLogger: Logger = createLogger(op => () => {});
 
 /**
  * A HTTP API using an OpenAPI definition.
@@ -168,6 +90,7 @@ export class OpenApi<RP extends object> {
   private interceptors: Interceptor<RP>[] = [];
   private apiPromises: Promise<OpenAPI.OpenAPIBackend>[] = [];
   private readonly errorHandlerAsync: ErrorHandler<RP>;
+  private readonly logger: Logger;
 
   /**
    * Constructor
@@ -175,19 +98,91 @@ export class OpenApi<RP extends object> {
    * @param [params.apiOptions] Options passed to the OpenAPIBackend instance.
    * @param [params.errorHandlerAsync] A function creating a response from an error thrown by the API.
    */
-  constructor({apiOptions, errorHandlerAsync = Errors.defaultErrorHandler}: {
+  constructor({apiOptions, errorHandlerAsync = Errors.defaultErrorHandler, logger = consoleLogger}: {
     apiOptions?: ApiOptions;
     errorHandlerAsync?: ErrorHandler<RP>;
+    logger?: Logger | null;
   } = {}) {
     this.apiOptions = {
       handlers: {...defaultHandlers}, // must copy
       ...apiOptions,
     };
     this.errorHandlerAsync = errorHandlerAsync;
+    this.logger = logger || noLogger;
   }
 
   private getApisAsync(): Promise<Array<OpenAPI.OpenAPIBackend>> {
     return Promise.all(this.apiPromises);
+  }
+
+  private async createApiAsync<P extends RP>(apiOptions: OpenAPI.Options,
+                                             operations: Record<string, OperationHandler<P, any, any>>,
+                                             authorizers: Record<string, Authorizer<P, any>> = {}) {
+    const api = await new OpenAPI.OpenAPIBackend(apiOptions).init();
+
+    for (const [id, handler] of Object.entries(operations)) {
+      api.registerHandler(id, this.createHandler(handler, id));
+    }
+
+    for (const [scheme, handler] of Object.entries(authorizers)) {
+      api.registerSecurityHandler(scheme, this.createSecurityHandler(handler, scheme));
+    }
+
+    return api;
+  }
+
+  private createHandler<P extends RP>(
+      operationHandler: OperationHandler<P>,
+      operationId: string,
+  ): OpenApiHandler<P, void> {
+    return async (apiContext, response, params) => {
+      const {operation, request} = apiContext;
+      this.logger.info(`Calling operation ${operationId}`);
+
+      const req = toRequest(request, operation);
+
+      // TODO Should response be copied before re-typed and passed to the operation?
+      //  Currently we broaden the type, pass it to the operation handler, then convert all params to strings and copy
+      //  back to the same object.
+      const res: Response = response;
+
+      // Note: The handler function may modify the "res" object and/or return a response body.
+      // If "res.body" is undefined we use the return value as the body.
+      const result = await operationHandler(req, res, {apiContext, ...params});
+      res.body = res.body ?? result;
+      Object.assign(response, fromResponse(res, operation));
+
+      this.validateResponse(response, operation, apiContext);
+    }
+  }
+
+  private createSecurityHandler<P extends RP, T>(
+      authorizer: Authorizer<P, T>,
+      name: string
+  ): OpenApiHandler<P, T> {
+    return async (apiContext, response: PendingRawResponse, params: P) => {
+      this.logger.info(`Calling authorizer ${name}`);
+
+      return authorizer(apiContext.request, response, {apiContext, ...params});
+    };
+  }
+
+  protected validateResponse(response: Response, operation: OpenAPI.Operation, {api}: OpenAPI.Context) {
+    const {statusCode, headers, body} = response;
+
+    this.handleValidationErrors(api.validateResponse(body, operation).errors, `Response body doesn't match schema`);
+
+    this.handleValidationErrors(api.validateResponseHeaders(headers, operation, {
+      statusCode,
+      setMatchType: OpenAPI.SetMatchType.Superset,
+    }).errors, `Response headers don't match schema`);
+  }
+
+  protected handleValidationErrors(errors: ErrorObject[] | null | undefined, message: string) {
+    if (errors) {
+      // TODO constructor option invalidResponseAction: 'warn' | 'fail'
+      this.logger.warn(`${message}: ${JSON.stringify(errors.map(formatValidationError))}`);
+    }
   }
 
   /**
@@ -210,7 +205,7 @@ export class OpenApi<RP extends object> {
    * @return This instance, for chaining of calls
    */
   register<P extends RP>({definition, operations, authorizers, path}: RegistrationParams<P>): this {
-    this.apiPromises.push(initApiAsync({
+    this.apiPromises.push(this.createApiAsync({
       ...this.apiOptions,
       definition,
       apiRoot: path,
@@ -272,13 +267,13 @@ export class OpenApi<RP extends object> {
     // We support multiple API definitions by looping through them as long as Invalid operation is thrown
     for (const api of apis) {
       try {
-        console.debug(`Attempting to route ${req.path} to ${api.apiRoot}`);
+        this.logger.debug(`Attempting to route ${req.path} to ${api.apiRoot}`);
 
-        console.log(`Calling api.handleRequest with ${JSON.stringify(res)}`);
+        this.logger.info(`Calling api.handleRequest with ${JSON.stringify(res)}`);
         return await api.handleRequest(req, res, params);
       } catch (e) {
         if (e instanceof Errors.NotFoundError) {
-          console.debug(`Route ${req.path} not found in ${api.apiRoot}`);
+          this.logger.debug(`Route ${req.path} not found in ${api.apiRoot}`);
           err = e;
         } else {
           throw e;
@@ -299,28 +294,21 @@ export class OpenApi<RP extends object> {
    */
   async handleAsync(req: RawRequest, params: RP): Promise<RawResponse> {
     const id = `${req.method.toUpperCase()} ${req.path}`;
-    console.info(`->${id}`);
+    this.logger.info(`->${id}`);
 
     const res: PendingRawResponse = {headers: {}};
 
     try {
       await this.routeAsync(req, res, params);
     } catch (err) {
-      console.warn(`Error: ${req.path}: "${err.name}: ${err.message}"`);
+      this.logger.warn(`Error: ${req.path}: "${err.name}: ${err.message}"`);
 
       await this.errorHandlerAsync(req, res, params, err);
       res.statusCode = res.statusCode ?? 500;
     }
 
-    console.info(`<-${id}: ${res.statusCode}`);
+    this.logger.info(`<-${id}: ${res.statusCode}`);
 
     return res as RawResponse;
   }
 }
-
-// function toStringParams(params: Params): Record<string, string | string[]> {
-//   return Object.fromEntries(
-//       Object.entries(params)
-//           .filter(([k, v]) => v !== undefined)
-//           .map(([k, v]) => [k, Array.isArray(v) ? v.map(x => x.toString()) : v!.toString()]));
-// }

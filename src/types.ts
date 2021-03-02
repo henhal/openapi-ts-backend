@@ -160,3 +160,12 @@ export type RegistrationParams<P> = {
   authorizers?: Record<string, Authorizer<P, any>>;
   path?: string;
 };
+
+// export interface Logger {
+//   debug(...args: any[]): any;
+//   info(...args: any[]): any;
+//   warn(...args: any[]): any;
+//   error(...args: any[]): any;
+// }
+
+export type Logger = Record<'debug' | 'info' | 'warn' | 'error', (...args: any[]) => any>;
