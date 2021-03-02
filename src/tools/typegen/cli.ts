@@ -1,17 +1,15 @@
+#!/usr/bin/env node
 import * as yaml from 'js-yaml';
 import generateOpenApiTypes from 'openapi-typescript';
 import {readFileSync, writeFileSync, mkdirSync, existsSync} from 'fs';
 import path from 'path';
 
 import {getApiOperationIds} from './parser';
+import * as templates from './templates';
 
 const YAML_EXTENSION = /\.ya?ml$/;
 
 const [inputFile, outputDir] = process.argv.slice(2);
-
-function readTemplate(name: string) {
-  return readFileSync(path.resolve(process.cwd(), '/templates', name)).toString();
-}
 
 function write(dirName: string, fileName: string, data: string) {
   const outputPath = path.resolve(dirName, fileName);
@@ -42,8 +40,10 @@ if (!existsSync(outputDir)) {
 createSpecTypes(inputFile, outputDir).then(specTypesPath => {
   const operationIds = getApiOperationIds(specTypesPath);
 
-  write(outputDir, `helpers.ts`, readTemplate('helpers.ts.txt'));
-  write(outputDir, `operations.ts`, readTemplate('operations.ts.txt'));
-  write(outputDir, `index.ts`, readTemplate('index.ts.txt').replace('$OPERATIONS',
+  write(outputDir, `helpers.ts`, templates.helpers);
+  write(outputDir, `operations.ts`, templates.operations);
+  write(outputDir, `index.ts`, templates.index.replace('$OPERATIONS',
       operationIds.map(id => `  ${id}: Operation<P, '${id}'>;`).join('\n')));
+
+  console.log(`Types written to ${outputDir}`);
 });

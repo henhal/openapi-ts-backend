@@ -11,6 +11,7 @@ import {
   Response,
 } from './types';
 import Operation from "./operation";
+import {getParametersSchema, parseParameters} from './utils';
 
 const defaultHandlers: Partial<OpenAPI.Options['handlers']> = Object.freeze({
   validationFail(context) {
@@ -51,69 +52,69 @@ type Schema = {
 
 type SchemaResolver = (name: string) => Schema | undefined;
 
-function getParameterSchemaResolver(
-    {parameters}: OpenAPI.Operation,
-    specTarget: string
-): SchemaResolver {
-  return (name: string) => {
-    if (parameters) {
-      for (const parameter of parameters) {
-        if ('in' in parameter && parameter.in === specTarget && parameter.name === name &&
-            parameter.schema && 'type' in parameter.schema ) {
-          return parameter.schema as Schema;
-        }
-      }
-    }
-  };
-}
+// function getParameterSchemaResolver(
+//     {parameters}: OpenAPI.Operation,
+//     specTarget: string
+// ): SchemaResolver {
+//   return (name: string) => {
+//     if (parameters) {
+//       for (const parameter of parameters) {
+//         if ('in' in parameter && parameter.in === specTarget && parameter.name === name &&
+//             parameter.schema && 'type' in parameter.schema ) {
+//           return parameter.schema as Schema;
+//         }
+//       }
+//     }
+//   };
+// }
+//
+// function getResponseHeaderSchemaResolver({responses}: OpenAPI.Operation, statusCode: number): SchemaResolver {
+//   return (name: string) => {
+//     if (responses && statusCode in responses) {
+//       const response = responses[statusCode];
+//
+//       if ('headers' in response && response.headers && name in response.headers) {
+//         const header = response.headers[name];
+//
+//         if ('schema' in header && header.schema) {
+//           return header.schema as Schema;
+//         }
+//       }
+//     }
+//   };
+// }
 
-function getResponseHeaderSchemaResolver({responses}: OpenAPI.Operation, statusCode: number): SchemaResolver {
-  return (name: string) => {
-    if (responses && statusCode in responses) {
-      const response = responses[statusCode];
-
-      if ('headers' in response && response.headers && name in response.headers) {
-        const header = response.headers[name];
-
-        if ('schema' in header && header.schema) {
-          return header.schema as Schema;
-        }
-      }
-    }
-  };
-}
-
-function transform<T, U>(x: T | Array<T>, func: (x: T) => U): U | Array<U> {
-  return Array.isArray(x) ? x.map(func) : func(x);
-}
-
-import Ajv from 'ajv';
-// TODO use new Ajv({coerceTypes}), build a full schema of all headers/query/path params and run ajv on it?
-
-function foo({parameters}: OpenAPI.Operation, specTarget: string) {
-  if (parameters) {
-    //return parameters.filter(p => 'in' in p && p.in === specTarget && 'schema' in p).map(p => p.schema);
-    return {
-      type: 'object',
-      properties: Object.fromEntries((parameters as any[]).filter(p => p.in === specTarget && p.schema).map(p => [p.name, p.schema]))
-    };
-  }
-}
-
-function parseParameters(params: RawParams, schemaResolver: SchemaResolver): Params {
-  return Object.fromEntries(Object.entries(params).map(([k, v]) => {
-    const schema = schemaResolver(k);
-
-    if (schema) {
-      const type = schema.items?.type || schema.type;
-
-      console.debug(`Parsing header ${k} as type ${type}`);
-      return [k, transform(v, s => parseValue(s, type))];
-    }
-
-    return [k, v];
-  }))
-}
+// function transform<T, U>(x: T | Array<T>, func: (x: T) => U): U | Array<U> {
+//   return Array.isArray(x) ? x.map(func) : func(x);
+// }
+//
+// import Ajv from 'ajv';
+// // TODO use new Ajv({coerceTypes}), build a full schema of all headers/query/path params and run ajv on it?
+//
+// function foo({parameters}: OpenAPI.Operation, specTarget: string) {
+//   if (parameters) {
+//     //return parameters.filter(p => 'in' in p && p.in === specTarget && 'schema' in p).map(p => p.schema);
+//     return {
+//       type: 'object',
+//       properties: Object.fromEntries((parameters as any[]).filter(p => p.in === specTarget && p.schema).map(p => [p.name, p.schema]))
+//     };
+//   }
+// }
+//
+// function parseParameters(params: RawParams, schemaResolver: SchemaResolver): Params {
+//   return Object.fromEntries(Object.entries(params).map(([k, v]) => {
+//     const schema = schemaResolver(k);
+//
+//     if (schema) {
+//       const type = schema.items?.type || schema.type;
+//
+//       console.debug(`Parsing header ${k} as type ${type}`);
+//       return [k, transform(v, s => parseValue(s, type))];
+//     }
+//
+//     return [k, v];
+//   }))
+// }
 
 function createOpenApiHandler<P>(
     operationHandler: OperationHandler<P, Request, Response>,
@@ -134,12 +135,13 @@ function createOpenApiHandler<P>(
     //const req: Request = {...request, body: request.body};
     // const headers = parseParameters(request.headers, operation.parameters, 'header');
     // const pathParams = parseParameters(request.params, operation.parameters, 'path');
+    console.log(`header schema: ${JSON.stringify(getParametersSchema(operation, 'header'), null, 2)}`);
     const req: Request = {
       method: request.method,
       path: request.path,
-      params: parseParameters(request.params, getParameterSchemaResolver(operation, 'path')),
-      headers: parseParameters(request.headers, getParameterSchemaResolver(operation, 'header')),
-      query: parseParameters(request.query, getParameterSchemaResolver(operation, 'query')),
+      params: parseParameters(request.params, getParametersSchema(operation, 'path')),
+      headers: parseParameters(request.headers, getParametersSchema(operation, 'header')),
+      query: parseParameters(request.query, getParametersSchema(operation, 'query')),
       body: request.body
     };
     const res: Response = response;
@@ -151,7 +153,7 @@ function createOpenApiHandler<P>(
     const result = operationHandler(req, res, {apiContext, ...params});
     console.log(`After operation res:\n${JSON.stringify(res, null, 2)}`);
     for (const [k, v] of Object.entries(res.headers)) {
-      res.headers[k] = transform(v, s => String(s));
+      res.headers[k] = Array.isArray(v) ? v.map(s => String(s)) : String(v);
     }
 
     console.log(`After converting res:\n${JSON.stringify(res, null, 2)}`);

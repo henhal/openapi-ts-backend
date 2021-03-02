@@ -3,12 +3,12 @@
   "version": "1.0.0",
   "description": "",
   "bin": {
-    "openapi-ts-backend": "dist/tools/typegen.js"
+    "openapi-ts-backend": "dist/tools/typegen/cli.js"
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && chmod u+x dist/tools/typegen/cli.js",
     "clean": "rm -rf dist"
   },
   "author": "henrik.hall2@gmail.com",

@@ -67,7 +67,7 @@ function toLambdaResult(res: RawResponse): Lambda.APIGatewayProxyResult {
  * @param api A lambda api
  * @returns Lambda event handler function
  */
-function createHttpEventHandler(api: LambdaOpenapi): Lambda.APIGatewayProxyHandler {
+function createHttpEventHandler(api: LambdaOpenApi): Lambda.APIGatewayProxyHandler {
   return async (event: Lambda.APIGatewayEvent, context: Lambda.Context) => {
     console.debug(`Lambda event:\n${JSON.stringify(event, null, 2)}`);
 
@@ -113,7 +113,7 @@ export type LambdaOperationHandler<P, Req extends Request, Res extends Response>
  * This uses the openapi-backend module to parse, route and validate requests created from Lambda events.
  *
  */
-export class LambdaOpenapi extends OpenApi<LambdaRequestParams> {
+export class LambdaOpenApi extends OpenApi<LambdaRequestParams> {
   /**
    * Create a lambda HTTP event handler for this API
    *
