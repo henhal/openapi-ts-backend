@@ -8,7 +8,8 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc && chmod u+x dist/tools/typegen/cli.js",
+    "build": "tsc",
+    "postbuild": "chmod u+x dist/tools/typegen/cli.js",
     "clean": "rm -rf dist"
   },
   "author": "henrik.hall2@gmail.com",
