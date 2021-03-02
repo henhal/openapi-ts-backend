@@ -3,15 +3,17 @@ import * as OpenAPI from 'openapi-backend';
 import * as Errors from './errors';
 import {
   Authorizer,
-  ErrorHandler,
+  ErrorHandler, Handler,
   Interceptor,
-  OperationHandler, Params, PendingRawResponse, RawParams, RawRequest, RawResponse,
+  OperationHandler, OperationParams, Params, PendingRawResponse, RawParams, RawRequest, RawResponse,
   RegistrationParams,
   Request,
   Response,
 } from './types';
 import Operation from "./operation";
-import {getParametersSchema, parseParameters} from './utils';
+import {getParametersSchema, inRange, mapObject, oneOrMany, parseParameters} from './utils';
+import {ParsedRequest} from 'openapi-backend';
+import {Context} from 'openapi-backend/backend';
 
 const defaultHandlers: Partial<OpenAPI.Options['handlers']> = Object.freeze({
   validationFail(context) {
@@ -116,8 +118,48 @@ type SchemaResolver = (name: string) => Schema | undefined;
 //   }))
 // }
 
+function toRequest(req: OpenAPI.ParsedRequest, operation: OpenAPI.Operation): Request {
+  return {
+    method: req.method,
+    path: req.path,
+    params: parseParameters(req.params, getParametersSchema(operation, 'path')),
+    headers: parseParameters(req.headers, getParametersSchema(operation, 'header')),
+    query: parseParameters(req.query, getParametersSchema(operation, 'query')),
+    body: req.body
+  };
+}
+
+function fromResponse(res: Response, {responses = {}}: OpenAPI.Operation): RawResponse {
+  let {statusCode, headers, body} = res;
+
+  if (statusCode === undefined) {
+    const codes = Object.keys(responses || {}).map(Number).filter(inRange(200, 400));
+
+    if (codes.length !== 1) {
+      throw new Error(`Ambiguous implicit response status code`);
+    }
+    statusCode = codes[0];
+  }
+
+  return {
+    statusCode,
+    headers: mapObject(headers, oneOrMany(String)),
+    body
+  };
+}
+
+// function createOperationHandlerWrapper<P extends OperationParams>(operationHandler: OperationHandler<P>): Handler<P, any> {
+//   return async (req, res, params) => {
+//     const {apiContext} = params;
+//     const {operation} = apiContext;
+//
+//     const result = operationHandler(toRequest(req, operation), res, params)
+//
+//   };
+// }
+
 function createOpenApiHandler<P>(
-    operationHandler: OperationHandler<P, Request, Response>,
+    operationHandler: OperationHandler<P>,
     name: string
 ): OpenAPI.Handler {
   // Note: These arguments match the call to api.handleRequest
@@ -128,22 +170,9 @@ function createOpenApiHandler<P>(
     console.debug(`Request:\n${JSON.stringify(apiContext.request, null, 2)}`);
     console.debug(`PendingRawResponse:\n${JSON.stringify(response, null, 2)}`);
 
-    // TODO convert apiContext.request to Request, including numerical headers etc
-    //const apiRequest = apiContext.request;
-    // const {method, path, params, headers, query, body} = apiContext.request;
-    // const req: Request = {method, path, params, headers, query, body};
-    //const req: Request = {...request, body: request.body};
-    // const headers = parseParameters(request.headers, operation.parameters, 'header');
-    // const pathParams = parseParameters(request.params, operation.parameters, 'path');
-    console.log(`header schema: ${JSON.stringify(getParametersSchema(operation, 'header'), null, 2)}`);
-    const req: Request = {
-      method: request.method,
-      path: request.path,
-      params: parseParameters(request.params, getParametersSchema(operation, 'path')),
-      headers: parseParameters(request.headers, getParametersSchema(operation, 'header')),
-      query: parseParameters(request.query, getParametersSchema(operation, 'query')),
-      body: request.body
-    };
+    const req = toRequest(request, operation);
+
+    // TODO better to copy raw response to new object and let route modify it and then copy back..?
     const res: Response = response;
 
     console.log(`Before operation req:\n${JSON.stringify(request, null, 2)}`);
@@ -151,13 +180,13 @@ function createOpenApiHandler<P>(
     console.log(`Passing req:\n${JSON.stringify(req, null, 2)}\n\nres:\n${JSON.stringify(res, null, 2)}`);
 
     const result = operationHandler(req, res, {apiContext, ...params});
+    res.body = res.body ?? result;
     console.log(`After operation res:\n${JSON.stringify(res, null, 2)}`);
-    for (const [k, v] of Object.entries(res.headers)) {
-      res.headers[k] = Array.isArray(v) ? v.map(s => String(s)) : String(v);
-    }
+    Object.assign(response, fromResponse(res, operation));
 
-    console.log(`After converting res:\n${JSON.stringify(res, null, 2)}`);
+    console.log(`After converting response:\n${JSON.stringify(response, null, 2)}`);
     // TODO should we validate the response? statusCode, headers, body?
+    // TODO return response instead of result..?
     return result;
   }
 }
@@ -172,8 +201,12 @@ async function initApiAsync<P>(apiOptions: OpenAPI.Options,
   }
 
   for (const [name, handler] of Object.entries(authorizers)) {
+    api.registerSecurityHandler(name, (apiContext, response: PendingRawResponse, params: P) => {
+      handler(apiContext.request, response, {apiContext, ...params});
+    });
+    // TODO should not use createOpenApiHandler here.
     // TODO should authorizers get converted headers etc?
-    api.registerSecurityHandler(name, createOpenApiHandler(handler as OperationHandler<any, any, any>, `authorizer ${name}`));
+    // api.registerSecurityHandler(name, createOpenApiHandler(handler as OperationHandler<any, any, any>, `authorizer ${name}`));
   }
 
   return api;

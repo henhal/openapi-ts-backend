@@ -1,8 +1,8 @@
 import * as OpenAPI from "openapi-backend";
 
-export type OperationContext = OpenAPI.Context;
+import {OneOrMany} from './utils';
 
-type OneOrMany<T> = T | Array<T>;
+export type OperationContext = OpenAPI.Context;
 
 export type Params<K extends string = string> = Record<K, OneOrMany<string | number | boolean> | undefined>;
 export type RawParams = Record<string, OneOrMany<string>>;
@@ -83,6 +83,12 @@ export type ErrorHandler<P> = (
     err: Error,
 ) => Awaitable<void>
 
+export type Handler<P, T> = (
+    req: RawRequest,
+    res: PendingRawResponse,
+    params: P
+) => Awaitable<T>;
+
 /**
  * An interceptor invoked for every request. This may be used in a similar way as Express MW.
  *
@@ -91,11 +97,7 @@ export type ErrorHandler<P> = (
  * @param res       Response
  * @param params    Parameters, which may include custom ones
  */
-export type Interceptor<P> = (
-    req: RawRequest,
-    res: PendingRawResponse,
-    params: P,
-) => Awaitable<void>;
+export type Interceptor<P> = Handler<P, void>;
 
 /**
  * The params always present in all routed requests
@@ -119,7 +121,7 @@ export type OperationParams = {
  * @async
  * @returns Response body or nothing
  */
-export type OperationHandler<P, Req extends Request, Res extends Response> = (
+export type OperationHandler<P, Req extends Request = Request, Res extends Response = Response> = (
     req: Req,
     res: Res,
     params: P & OperationParams,
@@ -143,11 +145,7 @@ export type OperationHandler<P, Req extends Request, Res extends Response> = (
  * @async
  * @returns Security scheme data
  */
-export type Authorizer<P, T> = (
-    req: RawRequest,
-    res: RawResponse,
-    params: P & OperationParams,
-) => Awaitable<T>;
+export type Authorizer<P, T> = Handler<P & OperationParams, T>;
 
 /**
  * @template P Type of params
@@ -158,7 +156,7 @@ export type Authorizer<P, T> = (
  */
 export type RegistrationParams<P> = {
   definition: OpenAPI.Document | string;
-  operations: Record<string, OperationHandler<P, Request<any>, Response<any>>>;
+  operations: Record<string, OperationHandler<P>>;
   authorizers?: Record<string, Authorizer<P, any>>;
   path?: string;
 };

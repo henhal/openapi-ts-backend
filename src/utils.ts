@@ -9,6 +9,8 @@ type ParamSchema = {
   properties: Record<string, any>;
 };
 
+export type OneOrMany<T> = T | Array<T>;
+
 const ajv = new Ajv({coerceTypes: 'array'});
 
 export function getParametersSchema(
@@ -32,11 +34,28 @@ export function getParametersSchema(
   return result;
 }
 
-export function parseParameters(params: RawParams, schema: ParamSchema): Params {
-  const valid = ajv.compile(schema)(params);
+export function parseParameters(params: Readonly<RawParams>, schema: ParamSchema): Params {
+  const result = JSON.parse(JSON.stringify(params));
+  const valid = ajv.compile(schema)(result);
 
   console.log(`Param schema is valid: ${valid}`);
-  console.log(params);
+  console.log(result);
 
-  return params;
+  return result;
+}
+
+export function mapObject<K extends string, V, W>(obj: Record<K, V>, func: (value: V, key: K, obj: Record<K, V>) => W) {
+  return Object.fromEntries(Object.entries<V>(obj).map(([k, v]) => [k, func(v, k as K, obj)]));
+}
+
+export function transform<T, U>(value: OneOrMany<T>, func: (value: T) => U): OneOrMany<U> {
+  return Array.isArray(value) ? value.map(func) : func(value);
+}
+
+export function oneOrMany<T, U>(func: (value: T) => U): (value: OneOrMany<T>) => OneOrMany<U> {
+  return value => Array.isArray(value) ? value.map(func) : func(value);
+}
+
+export function inRange(min: number, max: number): (value: number) => boolean {
+  return value => value >= min && value < max;
 }
