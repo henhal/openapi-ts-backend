@@ -1,19 +1,22 @@
 import * as OpenAPI from 'openapi-backend';
+import {SetMatchType} from 'openapi-backend';
 
 import * as Errors from './errors';
 import {
   Authorizer,
-  ErrorHandler, Handler,
+  Awaitable,
+  ErrorHandler,
   Interceptor,
-  OperationHandler, OperationParams, Params, PendingRawResponse, RawParams, RawRequest, RawResponse,
+  OperationHandler,
+  PendingRawResponse,
+  RawRequest,
+  RawResponse,
   RegistrationParams,
   Request,
   Response,
 } from './types';
 import Operation from "./operation";
-import {getParametersSchema, inRange, mapObject, oneOrMany, parseParameters} from './utils';
-import {ParsedRequest} from 'openapi-backend';
-import {Context} from 'openapi-backend/backend';
+import {formatValidationError, getParametersSchema, inRange, mapObject, oneOrMany, parseParameters} from './utils';
 
 const defaultHandlers: Partial<OpenAPI.Options['handlers']> = Object.freeze({
   validationFail(context) {
@@ -30,95 +33,8 @@ const defaultHandlers: Partial<OpenAPI.Options['handlers']> = Object.freeze({
   },
 });
 
-function parseValue(v: string, type: string) {
-  switch (type) {
-    case 'string':
-      return String(v);
-    case 'number':
-      return Number(v);
-    case 'integer':
-      return parseInt(v);
-    case 'boolean':
-      return Boolean(v);
-    default:
-      return v;
-  }
-}
-
-type Schema = {
-  type: string,
-  items?: {
-    type: string;
-  }
-};
-
-type SchemaResolver = (name: string) => Schema | undefined;
-
-// function getParameterSchemaResolver(
-//     {parameters}: OpenAPI.Operation,
-//     specTarget: string
-// ): SchemaResolver {
-//   return (name: string) => {
-//     if (parameters) {
-//       for (const parameter of parameters) {
-//         if ('in' in parameter && parameter.in === specTarget && parameter.name === name &&
-//             parameter.schema && 'type' in parameter.schema ) {
-//           return parameter.schema as Schema;
-//         }
-//       }
-//     }
-//   };
-// }
-//
-// function getResponseHeaderSchemaResolver({responses}: OpenAPI.Operation, statusCode: number): SchemaResolver {
-//   return (name: string) => {
-//     if (responses && statusCode in responses) {
-//       const response = responses[statusCode];
-//
-//       if ('headers' in response && response.headers && name in response.headers) {
-//         const header = response.headers[name];
-//
-//         if ('schema' in header && header.schema) {
-//           return header.schema as Schema;
-//         }
-//       }
-//     }
-//   };
-// }
-
-// function transform<T, U>(x: T | Array<T>, func: (x: T) => U): U | Array<U> {
-//   return Array.isArray(x) ? x.map(func) : func(x);
-// }
-//
-// import Ajv from 'ajv';
-// // TODO use new Ajv({coerceTypes}), build a full schema of all headers/query/path params and run ajv on it?
-//
-// function foo({parameters}: OpenAPI.Operation, specTarget: string) {
-//   if (parameters) {
-//     //return parameters.filter(p => 'in' in p && p.in === specTarget && 'schema' in p).map(p => p.schema);
-//     return {
-//       type: 'object',
-//       properties: Object.fromEntries((parameters as any[]).filter(p => p.in === specTarget && p.schema).map(p => [p.name, p.schema]))
-//     };
-//   }
-// }
-//
-// function parseParameters(params: RawParams, schemaResolver: SchemaResolver): Params {
-//   return Object.fromEntries(Object.entries(params).map(([k, v]) => {
-//     const schema = schemaResolver(k);
-//
-//     if (schema) {
-//       const type = schema.items?.type || schema.type;
-//
-//       console.debug(`Parsing header ${k} as type ${type}`);
-//       return [k, transform(v, s => parseValue(s, type))];
-//     }
-//
-//     return [k, v];
-//   }))
-// }
-
 function toRequest(req: OpenAPI.ParsedRequest, operation: OpenAPI.Operation): Request {
+  // Headers, path params and query params are coerced to their schema types
   return {
     method: req.method,
     path: req.path,
@@ -133,9 +49,11 @@ function fromResponse(res: Response, {responses = {}}: OpenAPI.Operation): RawRe
   let {statusCode, headers, body} = res;
 
   if (statusCode === undefined) {
+    // If statusCode is not set and there is exactly one successful response, we use it automatically.
     const codes = Object.keys(responses || {}).map(Number).filter(inRange(200, 400));
 
     if (codes.length !== 1) {
+      // No statusCode given and it's impossible to determine a default one from the response schemas
       throw new Error(`Ambiguous implicit response status code`);
     }
     statusCode = codes[0];
@@ -148,46 +66,75 @@ function fromResponse(res: Response, {responses = {}}: OpenAPI.Operation): RawRe
   };
 }
 
-// function createOperationHandlerWrapper<P extends OperationParams>(operationHandler: OperationHandler<P>): Handler<P, any> {
-//   return async (req, res, params) => {
-//     const {apiContext} = params;
-//     const {operation} = apiContext;
-//
-//     const result = operationHandler(toRequest(req, operation), res, params)
-//
-//   };
-// }
+// Note: Implementation of OpenAPI.Handler - these arguments match the call to api.handleRequest
+type OpenApiHandler<P, T> = (apiContext: OpenAPI.Context, response: PendingRawResponse, params: P) => Awaitable<T>;
+
+function createOpenApiSecurityHandler<P, T>(
+    authorizer: Authorizer<P, T>,
+    name: string
+): OpenApiHandler<P, T> {
+  return async (apiContext, response: PendingRawResponse, params: P) => {
+    console.debug(`Calling authorizer ${name}`);
+
+    return authorizer(apiContext.request, response, {apiContext, ...params});
+  };
+}
 
 function createOpenApiHandler<P>(
     operationHandler: OperationHandler<P>,
-    name: string
-): OpenAPI.Handler {
-  // Note: These arguments match the call to api.handleRequest
-  return async (apiContext, response: PendingRawResponse, params: P) => {
+    operationId: string
+): OpenApiHandler<P, void> {
+  return async (apiContext, response, params) => {
     const {operation, request} = apiContext;
-    console.debug(`Calling ${name}`)
+    console.debug(`Calling operation ${operationId}`);
+
     console.debug(`Operation:\n${JSON.stringify(operation, null, 2)}`);
-    console.debug(`Request:\n${JSON.stringify(apiContext.request, null, 2)}`);
-    console.debug(`PendingRawResponse:\n${JSON.stringify(response, null, 2)}`);
+    // console.debug(`Request:\n${JSON.stringify(request, null, 2)}`);
+    // console.debug(`PendingRawResponse:\n${JSON.stringify(response, null, 2)}`);
 
     const req = toRequest(request, operation);
 
-    // TODO better to copy raw response to new object and let route modify it and then copy back..?
+    // TODO Should response be copied before re-typed and passed to the operation?
+    //  Currently we broaden the type, pass it to the operation handler, then convert all params to strings and copy
+    //  back to the same object.
     const res: Response = response;
 
-    console.log(`Before operation req:\n${JSON.stringify(request, null, 2)}`);
+    console.log(`Calling ${operationId} with req:\n${JSON.stringify(req, null, 2)}\n\n` +
+        `res:\n${JSON.stringify(res, null, 2)}`);
 
-    console.log(`Passing req:\n${JSON.stringify(req, null, 2)}\n\nres:\n${JSON.stringify(res, null, 2)}`);
-
-    const result = operationHandler(req, res, {apiContext, ...params});
+    // Note: The handler function may modify the "res" object and/or return a response body.
+    // If "res.body" is undefined we use the return value as the body.
+    const result = await operationHandler(req, res, {apiContext, ...params});
+    console.log(`operation returned:`, result);
     res.body = res.body ?? result;
     console.log(`After operation res:\n${JSON.stringify(res, null, 2)}`);
     Object.assign(response, fromResponse(res, operation));
 
     console.log(`After converting response:\n${JSON.stringify(response, null, 2)}`);
+
+    validateResponse(response, operation, apiContext);
+
     // TODO should we validate the response? statusCode, headers, body?
-    // TODO return response instead of result..?
-    return result;
+  }
+}
+
+function validateResponse(response: Response, operation: OpenAPI.Operation, apiContext: OpenAPI.Context) {
+  const {statusCode, headers, body} = response;
+  let result = apiContext.api.validateResponse(body, operation);
+
+  if (result.errors) {
+    console.warn(`Response body doesn't match schema: ${JSON.stringify(result.errors.map(formatValidationError))}`);
+    // TODO should we throw an error here?
+  }
+
+  result = apiContext.api.validateResponseHeaders(headers, operation, {
+    statusCode,
+    setMatchType: SetMatchType.Superset
+  });
+
+  if (result.errors) {
+    console.warn(`Response headers don't match schema: ${JSON.stringify(result.errors.map(formatValidationError))}`);
+    // TODO should we throw an error here?
   }
 }
 
@@ -197,16 +144,11 @@ async function initApiAsync<P>(apiOptions: OpenAPI.Options,
   const api = await new OpenAPI.OpenAPIBackend(apiOptions).init();
 
   for (const [id, handler] of Object.entries(operations)) {
-    api.registerHandler(id, createOpenApiHandler(handler, `operation ${id}`));
+    api.registerHandler(id, createOpenApiHandler(handler, id));
   }
 
-  for (const [name, handler] of Object.entries(authorizers)) {
-    api.registerSecurityHandler(name, (apiContext, response: PendingRawResponse, params: P) => {
-      handler(apiContext.request, response, {apiContext, ...params});
-    });
-    // TODO should not use createOpenApiHandler here.
-    // TODO should authorizers get converted headers etc?
-    // api.registerSecurityHandler(name, createOpenApiHandler(handler as OperationHandler<any, any, any>, `authorizer ${name}`));
+  for (const [scheme, handler] of Object.entries(authorizers)) {
+    api.registerSecurityHandler(scheme, createOpenApiSecurityHandler(handler, scheme));
   }
 
   return api;
@@ -314,7 +256,7 @@ export class OpenApi<RP extends object> {
       req: RawRequest,
       res: PendingRawResponse,
       params: RP,
-  ): Promise<Response['body'] | void> {
+  ): Promise<void> {
     const apis = await this.getApisAsync();
 
     if (!apis.length) {
@@ -362,13 +304,7 @@ export class OpenApi<RP extends object> {
     const res: PendingRawResponse = {headers: {}};
 
     try {
-      // Note: The handler function may modify the "res" object.
-      // If "res.body" is undefined we use the return value as the body.
-      // TODO these conversions should be handled inside the OperationHandler wrapper, so that an operation
-      //  specific default value can be added instead of hard-coding 200.
-      const result = await this.routeAsync(req, res, params);
-      res.statusCode = res.statusCode ?? 200;
-      res.body = res.body ?? result as Response['body'];
+      await this.routeAsync(req, res, params);
     } catch (err) {
       console.warn(`Error: ${req.path}: "${err.name}: ${err.message}"`);
 

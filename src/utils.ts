@@ -1,23 +1,30 @@
 import * as OpenAPI from 'openapi-backend';
 
-import Ajv from 'ajv';
+import Ajv, {ErrorObject} from 'ajv';
 import {Params, RawParams} from './types';
 
 type ParamSchema = {
   type: 'object';
   required: string[];
   properties: Record<string, any>;
+  additionalProperties?: boolean;
 };
 
 export type OneOrMany<T> = T | Array<T>;
 
 const ajv = new Ajv({coerceTypes: 'array'});
 
+export function formatValidationError(error: ErrorObject): string {
+  return `At '${error.dataPath}': ${Object.entries(error.params)
+      .map(([k, v]) => `${k}: ${JSON.stringify(v)}`)
+      .join(', ')}`;
+}
+
 export function getParametersSchema(
     {parameters = []}: OpenAPI.Operation,
     type: 'header' | 'query' | 'path'
-) {
-  const result: ParamSchema = {type: 'object', required: [], properties: {}};
+): ParamSchema {
+  const result: ParamSchema = {type: 'object', required: [], properties: {}, additionalProperties: true};
 
   for (const parameter of parameters) {
     if ('in' in parameter && parameter.in === type) {
@@ -35,11 +42,17 @@ export function getParametersSchema(
 }
 
 export function parseParameters(params: Readonly<RawParams>, schema: ParamSchema): Params {
-  const result = JSON.parse(JSON.stringify(params));
-  const valid = ajv.compile(schema)(result);
+  const result: RawParams = JSON.parse(JSON.stringify(params));
+  const validate = ajv.compile(schema)
 
-  console.log(`Param schema is valid: ${valid}`);
-  console.log(result);
+  validate(result);
+
+  if (validate.errors) {
+    // TODO would need type of params for a meaningful error.
+    console.warn(`Request params don't match schema: ${JSON.stringify(validate.errors.map(formatValidationError))}`);
+
+    // TODO should we throw an error here? It means the parameters won't match the generated types
+  }
 
   return result;
 }
