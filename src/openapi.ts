@@ -6,7 +6,7 @@ import {
   Authorizer,
   Awaitable,
   ErrorHandler,
-  Interceptor, Logger,
+  Interceptor,
   OperationHandler,
   PendingRawResponse,
   RawRequest,
@@ -17,19 +17,20 @@ import {
 } from './types';
 import Operation from "./operation";
 import {formatValidationError, getParametersSchema, inRange, mapObject, oneOrMany, parseParameters} from './utils';
+import {createLogger, Logger} from './logger';
 
 const defaultHandlers: Partial<OpenAPI.Options['handlers']> = Object.freeze({
-  validationFail(context) {
-    throw new Errors.ValidationFailError(context);
+  validationFail(apiContext) {
+    throw new Errors.ValidationFailError(apiContext);
   },
-  notFound(context) {
-    throw new Errors.NotFoundError(context);
+  notFound(apiContext) {
+    throw new Errors.NotFoundError(apiContext);
   },
-  notImplemented(context) {
-    throw new Errors.NotImplementedError(context);
+  notImplemented(apiContext) {
+    throw new Errors.NotImplementedError(apiContext);
   },
-  unauthorizedHandler(context) {
-    throw new Errors.UnauthorizedError(context);
+  unauthorizedHandler(apiContext) {
+    throw new Errors.UnauthorizedError(apiContext);
   },
 });
 
@@ -71,12 +72,8 @@ type OpenApiHandler<P, T> = (apiContext: OpenAPI.Context, response: PendingRawRe
 
 export type ApiOptions = Pick<OpenAPI.Options, 'ajvOpts' | 'customizeAjv'>;
 
-function createLogger(f: (op: keyof Logger) => Logger[keyof Logger]): Logger {
-  return Object.assign({}, ...['debug', 'info', 'warn', 'error'].map(op => ({[op]: f(op as keyof Logger)})));
-}
-
-const consoleLogger: Logger = createLogger(op => (msg: string, ...args: any[]) =>  console[op](`${op}: ${msg}`, ...args));
-const noLogger: Logger = createLogger(op => () => {});
+const consoleLogger: Logger = createLogger(level => console[level].bind(null, `${level}:`));
+const noLogger: Logger = createLogger(level => () => {});
 
 /**
  * A HTTP API using an OpenAPI definition.
