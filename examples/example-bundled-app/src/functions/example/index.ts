@@ -1,6 +1,5 @@
 import {
   ApiContext,
-  attachParams,
   HttpError,
   LambdaOpenApi,
   LambdaRequestParams,
@@ -106,7 +105,7 @@ const definition = `${ROOT_PATH}/out/spec/example-api/api.yml`;
 
 console.debug(`Using OpenAPI document ${definition}`);
 
-const operations: Operations<Context & LambdaRequestParams> = {
+const operations: Operations<LambdaRequestParams<Context>> = {
   greet: (req, res, params) => {
     const {person} = req.body;
     const hhh = req.headers;
@@ -137,13 +136,15 @@ const operations: Operations<Context & LambdaRequestParams> = {
   },
 };
 
-export default new LambdaOpenApi()
-    .intercept(attachParams(createContextAsync()))
+export default new LambdaOpenApi({context: createContextAsync()})
+    .intercept(((req, res, params) => {
+      console.log(`Event:`, params.source.event);
+    }))
     .register({
       definition,
       authorizers: {
         AccessToken: (req, res, params) => {
-          console.debug(`AccessToken: res=${JSON.stringify(res)}`);
+          //console.debug(`AccessToken: res=${JSON.stringify(res)}`);
           return authenticate(req, params.apiContext);
         }
       },

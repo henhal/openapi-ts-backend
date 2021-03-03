@@ -67,6 +67,15 @@ export type Response<Body = any, Headers extends Params = Params> = {
  */
 export type Awaitable<T> = T | Promise<T>;
 
+type NotFunction<T> = T extends Function ? never : T;
+
+export type Resolvable<T> = (NotFunction<T> | (() => T));
+
+export interface RequestParams<S = unknown, C = unknown> {
+  source: S;
+  context: C;
+}
+
 /**
  * An error handler invoked when a route handler throws an error or when
  * a request could not be routed at all.
@@ -79,35 +88,30 @@ export type Awaitable<T> = T | Promise<T>;
  * @param err       Error thrown by the handler or router
  * @async
  */
-export type ErrorHandler<C = unknown> = (
+export type ErrorHandler<P extends RequestParams = RequestParams> = (
     req: RawRequest,
     res: PendingRawResponse,
-    context: C,
+    params: P,
     err: Error,
 ) => Awaitable<void>
 
-export type Handler<C, T> = (
+export type Handler<P extends RequestParams, T> = (
     req: RawRequest,
     res: PendingRawResponse,
-    context: C
+    params: P
 ) => Awaitable<T>;
 
 /**
- * An interceptor invoked for every request. This may be used in a similar way as Express MW.
- *
- * @template C      Context
- * @param req       Request
- * @param res       Response
- * @param context   Context
+ * An interceptor invoked for every request before routing it.
  */
-export type Interceptor<C> = Handler<C, void>;
+export type Interceptor<P extends RequestParams> = Handler<P, void>;
 
 /**
  * The context always present in all routed requests
  */
-export type OperationParams = {
+export interface OperationParams {
   apiContext: ApiContext;
-};
+}
 
 /**
  * A handler implementing a single API operation
@@ -124,11 +128,12 @@ export type OperationParams = {
  * @async
  * @returns Response body or nothing
  */
-export type OperationHandler<C, Req extends Request = Request, Res extends Response = Response> = (
-    req: Req,
-    res: Res,
-    context: C & OperationParams,
-) => Awaitable<Res['body'] | void>;
+export type OperationHandler<P extends RequestParams,
+    Req extends Request = Request,
+    Res extends Response = Response> = (
+        req: Req,
+        res: Res,
+        params: P & OperationParams) => Awaitable<Res['body'] | void>;
 
 /**
  * A handler implementing a security scheme.
@@ -148,7 +153,7 @@ export type OperationHandler<C, Req extends Request = Request, Res extends Respo
  * @async
  * @returns Security scheme data
  */
-export type Authorizer<C, T = unknown> = Handler<C & OperationParams, T>;
+export type Authorizer<P extends RequestParams, T = unknown> = Handler<P & OperationParams, T>;
 
 /**
  * @template C Type of context
@@ -157,10 +162,10 @@ export type Authorizer<C, T = unknown> = Handler<C & OperationParams, T>;
  * @property [authorizers]  Map of securityScheme names in the definition to Authorizer functions
  * @property [path = '/']   API path prefix for this API
  */
-export type RegistrationParams<C> = {
+export type RegistrationParams<P extends RequestParams> = {
   definition: OpenAPI.Document | string;
-  operations: Record<string, OperationHandler<C>>;
-  authorizers?: Record<string, Authorizer<C, any>>;
+  operations: Record<string, OperationHandler<P>>;
+  authorizers?: Record<string, Authorizer<P, any>>;
   path?: string;
 };
 

@@ -1,7 +1,7 @@
 import * as Lambda from 'aws-lambda';
 
 import {OpenApi} from '../../openapi';
-import {OperationHandler, RawRequest, RawResponse, Request, Response} from '../../types';
+import {OperationHandler, RawRequest, RawResponse, Request, RequestParams, Response} from '../../types';
 
 function parseJson(body: string | null): any {
   // Try to parse the body as JSON. If it's malformed, we return the raw string as the body to get a useful
@@ -67,7 +67,7 @@ function toLambdaResult(res: RawResponse): Lambda.APIGatewayProxyResult {
  * @param api A lambda api
  * @returns Lambda event handler function
  */
-function createHttpEventHandler(api: LambdaOpenApi): Lambda.APIGatewayProxyHandler {
+function createHttpEventHandler<C>(api: LambdaOpenApi<C>): Lambda.APIGatewayProxyHandler {
   return async (event: Lambda.APIGatewayEvent, context: Lambda.Context) => {
     console.debug(`Lambda event:\n${JSON.stringify(event, null, 2)}`);
 
@@ -97,29 +97,53 @@ function createHttpEventHandler(api: LambdaOpenApi): Lambda.APIGatewayProxyHandl
  * @property event    The Lambda event
  * @property context  The Lambda context
  */
-export type LambdaRequestParams = {
+export type LambdaSource = {
   event: Lambda.APIGatewayEvent;
   context: Lambda.Context;
 };
 
+export type LambdaRequestParams<C = unknown> = RequestParams<LambdaSource, C>;
+
 /**
  * AWS Lambda operation handler
  */
-export type LambdaOperationHandler<P, Req extends Request, Res extends Response> =
-    OperationHandler<P & LambdaRequestParams, Req, Res>;
+export type LambdaOperationHandler<P extends LambdaRequestParams = LambdaRequestParams,
+    Req extends Request = Request,
+    Res extends Response = Response> = OperationHandler<P, Req, Res>;
 
 /**
  * A HTTP API using an OpenAPI definition.
  * This uses the openapi-backend module to parse, route and validate requests created from Lambda events.
  *
  */
-export class LambdaOpenApi extends OpenApi<LambdaRequestParams> {
+export class LambdaOpenApi<C> extends OpenApi<LambdaSource, C> {
   /**
    * Create a lambda HTTP event handler for this API
    *
    * @return A lambda event handler function
    */
   eventHandler(): Lambda.APIGatewayProxyHandler {
-    return createHttpEventHandler(this);
+    return async (event: Lambda.APIGatewayEvent, context: Lambda.Context) => {
+      this.logger.debug(`Lambda event:\n${JSON.stringify(event, null, 2)}`);
+
+      if (!event.path) {
+        // We silently ignore non HTTP events such as warmup
+        this.logger.info(`Ignoring event not from API gateway.`);
+
+        return {
+          statusCode: 200,
+          body: '',
+        };
+      }
+
+      const res = await this.handleAsync(
+          fromLambdaEvent(event),
+          {
+            event,
+            context,
+          });
+
+      return toLambdaResult(res);
+    }
   }
 }

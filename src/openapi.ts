@@ -12,12 +12,20 @@ import {
   RawRequest,
   RawResponse,
   RegistrationParams,
-  Request,
+  Request, RequestParams, Resolvable,
   Response,
 } from './types';
 import Operation from "./operation";
 import {formatValidationError, getParametersSchema, inRange, mapObject, oneOrMany, parseParameters} from './utils';
 import {createLogger, Logger} from './logger';
+
+// Note: Implementation of OpenAPI.Handler - these arguments match the call to api.handleRequest
+type OpenApiHandler<P, T> = (apiContext: OpenAPI.Context, response: PendingRawResponse, params: P) => Awaitable<T>;
+
+export type ApiOptions = Pick<OpenAPI.Options, 'ajvOpts' | 'customizeAjv'>;
+
+const consoleLogger: Logger = createLogger(level => console[level].bind(null, `${level}:`));
+const noLogger: Logger = createLogger(level => () => {});
 
 const defaultHandlers: Partial<OpenAPI.Options['handlers']> = Object.freeze({
   validationFail(apiContext) {
@@ -67,27 +75,20 @@ function fromResponse(res: Response, {responses = {}}: OpenAPI.Operation): RawRe
   };
 }
 
-// Note: Implementation of OpenAPI.Handler - these arguments match the call to api.handleRequest
-type OpenApiHandler<P, T> = (apiContext: OpenAPI.Context, response: PendingRawResponse, params: P) => Awaitable<T>;
-
-export type ApiOptions = Pick<OpenAPI.Options, 'ajvOpts' | 'customizeAjv'>;
-
-const consoleLogger: Logger = createLogger(level => console[level].bind(null, `${level}:`));
-const noLogger: Logger = createLogger(level => () => {});
-
 /**
  * A HTTP API using an OpenAPI definition.
  * This uses the openapi-backend module to parse, route and validate requests created from events.
  *
- * @template RP     Type of params passed to each request
+ * @template Context     Type of context passed to each request
  *
  */
-export class OpenApi<Context extends Record<string, any>> {
+export class OpenApi<S, C> {
   private readonly apiOptions: Partial<OpenAPI.Options>;
-  private interceptors: Interceptor<Context>[] = [];
+  private interceptors: Interceptor<RequestParams<S, C>>[] = [];
   private apiPromises: Promise<OpenAPI.OpenAPIBackend>[] = [];
-  private readonly errorHandlerAsync: ErrorHandler<Context>;
-  private readonly logger: Logger;
+  private readonly errorHandlerAsync: ErrorHandler<RequestParams<S, C>>;
+  private context?: Resolvable<Awaitable<C>>;
+  readonly logger: Logger;
 
   /**
    * Constructor
@@ -96,10 +97,11 @@ export class OpenApi<Context extends Record<string, any>> {
    * @param [params.errorHandlerAsync] A function creating a response from an error thrown by the API.
    * @param [params.logger] A logger, or null to suppress all logging
    */
-  constructor({apiOptions, errorHandlerAsync = Errors.defaultErrorHandler, logger = consoleLogger}: {
+  constructor({apiOptions, errorHandlerAsync = Errors.defaultErrorHandler, logger = consoleLogger, context}: {
     apiOptions?: ApiOptions;
-    errorHandlerAsync?: ErrorHandler<Context>;
+    errorHandlerAsync?: ErrorHandler<RequestParams<S, C>>;
     logger?: Logger | null;
+    context?: Resolvable<Awaitable<C>>;
   } = {}) {
     this.apiOptions = {
       handlers: {...defaultHandlers}, // must copy
@@ -107,15 +109,22 @@ export class OpenApi<Context extends Record<string, any>> {
     };
     this.errorHandlerAsync = errorHandlerAsync;
     this.logger = logger || noLogger;
+    this.context = context;
+  }
+
+  private getContextAsync(): C {
+    const {context} = this;
+
+    return typeof context === 'function' ? (context as Function)() : context;
   }
 
   private getApisAsync(): Promise<Array<OpenAPI.OpenAPIBackend>> {
     return Promise.all(this.apiPromises);
   }
 
-  private async createApiAsync<C extends Context>(apiOptions: OpenAPI.Options,
-                                                  operations: Record<string, OperationHandler<C>>,
-                                                  authorizers: Record<string, Authorizer<C>> = {}) {
+  private async createApiAsync(apiOptions: OpenAPI.Options,
+                               operations: Record<string, OperationHandler<RequestParams<S, C>>>,
+                               authorizers: Record<string, Authorizer<RequestParams<S, C>>> = {}) {
     const api = await new OpenAPI.OpenAPIBackend(apiOptions).init();
 
     for (const [id, handler] of Object.entries(operations)) {
@@ -129,11 +138,11 @@ export class OpenApi<Context extends Record<string, any>> {
     return api;
   }
 
-  private createHandler<C extends Context>(
-      operationHandler: OperationHandler<C>,
+  private createHandler(
+      operationHandler: OperationHandler<RequestParams<S, C>>,
       operationId: string,
-  ): OpenApiHandler<C, void> {
-    return async (apiContext, response, context) => {
+  ): OpenApiHandler<RequestParams<S, C>, void> {
+    return async (apiContext, response, params) => {
       const {operation, request} = apiContext;
       this.logger.info(`Calling operation ${operationId}`);
 
@@ -146,7 +155,7 @@ export class OpenApi<Context extends Record<string, any>> {
 
       // Note: The handler function may modify the "res" object and/or return a response body.
       // If "res.body" is undefined we use the return value as the body.
-      const result = await operationHandler(req, res, {apiContext, ...context});
+      const result = await operationHandler(req, res, {apiContext, ...params});
       res.body = res.body ?? result;
       Object.assign(response, fromResponse(res, operation));
 
@@ -154,14 +163,14 @@ export class OpenApi<Context extends Record<string, any>> {
     }
   }
 
-  private createSecurityHandler<C extends Context, T>(
-      authorizer: Authorizer<C, T>,
+  private createSecurityHandler<T>(
+      authorizer: Authorizer<RequestParams<S, C>, T>,
       name: string
-  ): OpenApiHandler<C, T> {
-    return async (apiContext, response: PendingRawResponse, context: C) => {
+  ): OpenApiHandler<RequestParams<S, C>, T> {
+    return async (apiContext, response: PendingRawResponse, params: RequestParams<S, C>) => {
       this.logger.info(`Calling authorizer ${name}`);
 
-      return authorizer(apiContext.request, response, {apiContext, ...context});
+      return authorizer(apiContext.request, response, {apiContext, ...params});
     };
   }
 
@@ -190,8 +199,8 @@ export class OpenApi<Context extends Record<string, any>> {
    * @param interceptors Interceptor functions
    * @return This instance, for chaining of calls
    */
-  intercept<C extends Context>(...interceptors: Interceptor<C>[]): this {
-    this.interceptors.push(...interceptors as Interceptor<Context>[]);
+  intercept(...interceptors: Interceptor<RequestParams<S, C>>[]): this {
+    this.interceptors.push(...interceptors);
 
     return this;
   }
@@ -202,7 +211,7 @@ export class OpenApi<Context extends Record<string, any>> {
    * @param params Parameters
    * @return This instance, for chaining of calls
    */
-  register<C extends Context>({definition, operations, authorizers, path}: RegistrationParams<C>): this {
+  register({definition, operations, authorizers, path}: RegistrationParams<RequestParams<S, C>>): this {
     this.apiPromises.push(this.createApiAsync({
       ...this.apiOptions,
       definition,
@@ -241,14 +250,14 @@ export class OpenApi<Context extends Record<string, any>> {
    *
    * @param req Request
    * @param res Pending response (filled in by this method)
-   * @param context Context
+   * @param params Request params
    * @returns Empty promise if successful; rejected promise the request could not be routed
    *          or if the operation handler threw an error.
    */
   protected async routeAsync(
       req: RawRequest,
       res: PendingRawResponse,
-      context: Context,
+      params: RequestParams<S, C>
   ): Promise<void> {
     const apis = await this.getApisAsync();
 
@@ -258,7 +267,7 @@ export class OpenApi<Context extends Record<string, any>> {
 
     // Invoke the interceptors
     for (const interceptor of this.interceptors) {
-      await interceptor(req, res, context);
+      await interceptor(req, res, params);
     }
 
     let err: Errors.NotFoundError | undefined;
@@ -269,7 +278,7 @@ export class OpenApi<Context extends Record<string, any>> {
         this.logger.debug(`Attempting to route ${req.path} to ${api.apiRoot}`);
 
         this.logger.info(`Calling api.handleRequest with ${JSON.stringify(res)}`);
-        return await api.handleRequest(req, res, context);
+        return await api.handleRequest(req, res, params);
       } catch (e) {
         if (e instanceof Errors.NotFoundError) {
           this.logger.debug(`Route ${req.path} not found in ${api.apiRoot}`);
@@ -288,21 +297,23 @@ export class OpenApi<Context extends Record<string, any>> {
    * If an error was thrown, the error handler function is invoked to convert it to a response.
    *
    * @param req Request
-   * @param context Context
+   * @param source Request source
    * @returns Response
    */
-  async handleAsync(req: RawRequest, context: Context): Promise<RawResponse> {
+  async handleAsync(req: RawRequest, source: S): Promise<RawResponse> {
+    const context = await this.getContextAsync();
+    const params: RequestParams<S, C> = {source, context};
     const id = `${req.method.toUpperCase()} ${req.path}`;
     this.logger.info(`->${id}`);
 
     const res: PendingRawResponse = {headers: {}};
 
     try {
-      await this.routeAsync(req, res, context);
+      await this.routeAsync(req, res, params);
     } catch (err) {
       this.logger.warn(`Error: ${req.path}: "${err.name}: ${err.message}"`);
 
-      await this.errorHandlerAsync(req, res, context, err);
+      await this.errorHandlerAsync(req, res, params, err);
       res.statusCode = res.statusCode ?? 500;
     }
 
