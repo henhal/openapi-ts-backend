@@ -2,7 +2,7 @@ import * as OpenAPI from "openapi-backend";
 
 import {OneOrMany} from './utils';
 
-export type OperationContext = OpenAPI.Context;
+export type ApiContext = OpenAPI.Context;
 
 export type Params<K extends string = string> = Record<K, OneOrMany<string | number | boolean> | undefined>;
 export type RawParams = Record<string, OneOrMany<string>>;
@@ -17,7 +17,10 @@ export type RawParams = Record<string, OneOrMany<string>>;
  * @property query Query string or parsed query object
  *
  */
-export type Request<Body = any, PathParams extends Params = Params, Query extends Params = Params, Headers extends Params = Params> = {
+export type Request<Body = any,
+    PathParams extends Params = Params,
+    Query extends Params = Params,
+    Headers extends Params = Params> = {
   method: string;
   path: string;
   params: PathParams;
@@ -69,41 +72,41 @@ export type Awaitable<T> = T | Promise<T>;
  * a request could not be routed at all.
  * This function should modify the response accordingly, by _at least_ setting res.statusCode.
  *
- * @template P      Type of params
+ * @template C      Type of context
  * @param req       Request
  * @param res       Response
- * @param params    Parameters, which may include custom ones
+ * @param context   Context
  * @param err       Error thrown by the handler or router
  * @async
  */
-export type ErrorHandler<P> = (
+export type ErrorHandler<C = unknown> = (
     req: RawRequest,
     res: PendingRawResponse,
-    params: P,
+    context: C,
     err: Error,
 ) => Awaitable<void>
 
-export type Handler<P, T> = (
+export type Handler<C, T> = (
     req: RawRequest,
     res: PendingRawResponse,
-    params: P
+    context: C
 ) => Awaitable<T>;
 
 /**
  * An interceptor invoked for every request. This may be used in a similar way as Express MW.
  *
- * @template P      Type of params
+ * @template C      Context
  * @param req       Request
  * @param res       Response
- * @param params    Parameters, which may include custom ones
+ * @param context   Context
  */
-export type Interceptor<P> = Handler<P, void>;
+export type Interceptor<C> = Handler<C, void>;
 
 /**
- * The params always present in all routed requests
+ * The context always present in all routed requests
  */
 export type OperationParams = {
-  apiContext: OperationContext;
+  apiContext: ApiContext;
 };
 
 /**
@@ -112,19 +115,19 @@ export type OperationParams = {
  * If res.body is not set when this function returns, the return value of the handler will be used as the response body.
  * If res.statusCode is not set when this function returns, 200 will be used.
  *
- * @template P          Type of params
+ * @template P          Type of context
  * @template ReqBody    Type of request body
  * @template ResBody    Type of response body
  * @param req           Request
  * @param res           Response
- * @param params        Parameters, which may include custom ones
+ * @param context       Context
  * @async
  * @returns Response body or nothing
  */
-export type OperationHandler<P, Req extends Request = Request, Res extends Response = Response> = (
+export type OperationHandler<C, Req extends Request = Request, Res extends Response = Response> = (
     req: Req,
     res: Res,
-    params: P & OperationParams,
+    context: C & OperationParams,
 ) => Awaitable<Res['body'] | void>;
 
 /**
@@ -137,27 +140,27 @@ export type OperationHandler<P, Req extends Request = Request, Res extends Respo
  * Example: If an authorized is registered for the security scheme "ApiKey", the value returned
  * from the authorizer will be stored in context.security['ApiKey'].
  *
- * @template P  Type of params
+ * @template C  Type of context
  * @template T  Type of produced security scheme data
  * @param req       Request
  * @param res       Response
- * @param params    Parameters, which may include custom ones
+ * @param context   Context
  * @async
  * @returns Security scheme data
  */
-export type Authorizer<P, T> = Handler<P & OperationParams, T>;
+export type Authorizer<C, T = unknown> = Handler<C & OperationParams, T>;
 
 /**
- * @template P Type of params
+ * @template C Type of context
  * @property definition     Path to an OpenAPI specification file, or an OpenAPI specification object.
  * @property operations     Map of operationId:s in the definition to OperationHandler functions
  * @property [authorizers]  Map of securityScheme names in the definition to Authorizer functions
  * @property [path = '/']   API path prefix for this API
  */
-export type RegistrationParams<P> = {
+export type RegistrationParams<C> = {
   definition: OpenAPI.Document | string;
-  operations: Record<string, OperationHandler<P>>;
-  authorizers?: Record<string, Authorizer<P, any>>;
+  operations: Record<string, OperationHandler<C>>;
+  authorizers?: Record<string, Authorizer<C, any>>;
   path?: string;
 };
 

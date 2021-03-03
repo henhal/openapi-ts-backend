@@ -1,6 +1,6 @@
 import * as OpenAPI from "openapi-backend";
 
-import {PendingRawResponse, RawRequest} from "./types";
+import {ErrorHandler, PendingRawResponse, RawRequest} from "./types";
 import {formatValidationError} from './utils';
 
 function formatOperationName(request: OpenAPI.ParsedRequest) {
@@ -94,13 +94,8 @@ function toHttpError(err: Error): HttpError {
   return new HttpError(`Internal error`, 500);
 }
 
-export function defaultErrorHandler<P>(
-    req: RawRequest,
-    res: PendingRawResponse,
-    params: P,
-    err: Error,
-) {
+export const defaultErrorHandler: ErrorHandler = (req, res, context, err) => {
   const {statusCode = 500, message = 'Unknown error', data} = toHttpError(err);
 
   Object.assign(res, {statusCode, body: {message, data}});
-}
+};
