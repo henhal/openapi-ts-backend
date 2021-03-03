@@ -1,0 +1,21 @@
+Person:
+  type: object
+  description: A person
+  required: [name]
+  properties:
+    name: {type: string}
+    age: {type: integer}
+    gender: {type: string, enum: [MALE, FEMALE, UNSPECIFIED]}
+Greet.Request:
+  type: object
+  required: [person]
+  properties:
+    person: {$ref: '#/components/schemas/Person'}
+Greet.Response:
+  type: object
+  required: [message]
+  properties:
+    message: {type: string}
+  additionalProperties: false
+BarHeader:
+  type: string

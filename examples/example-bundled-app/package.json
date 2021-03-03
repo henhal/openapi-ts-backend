@@ -1,0 +1,43 @@
+{
+  "name": "example-openapi-ts-lambda-backend",
+  "version": "1.0.0",
+  "author": "henrik.hall2@gmail.com",
+  "dependencies": {
+    "jsonwebtoken": "^8.5.1",
+    "openapi-ts-backend": "../../"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.55",
+    "@types/jest": "^26.0.15",
+    "@types/jsonwebtoken": "^8.5.0",
+    "@typescript-eslint/eslint-plugin": "^4.7.0",
+    "@typescript-eslint/parser": "^4.7.0",
+    "aws-lambda": "^1.0.6",
+    "chai": "^4.2.0",
+    "chai-as-promised": "^7.1.1",
+    "eslint": "^7.13.0",
+    "jest": "^26.6.3",
+    "redoc-cli": "^0.10.0",
+    "serverless": "^2.18.0",
+    "serverless-bundle": "^3.2.1",
+    "serverless-plugin-scripts": "^1.0.2",
+    "serverless-plugin-warmup": "^4.9.0",
+    "serverless-prune-plugin": "^1.4.3",
+    "ts-jest": "^26.4.4",
+    "typescript": "^4.1.2",
+    "yaml-import": "^2.0.0"
+  },
+  "private": true,
+  "scripts": {
+    "api:build": "tools/spec.sh definition/example-api/api.yml out/spec/example-api",
+    "api:docs": "yarn run api:build && tools/docs.sh out/spec/example-api/api.yml out/html/example-api definition/example-api/assets",
+    "api:types": "yarn run api:build && mkdir -p src/gen/example-api && openapi-ts-backend out/spec/example-api/api.yml src/gen/example-api",
+    "ts:build": "yarn run api:types && tools/build.sh",
+    "clean": "rm -rf build && rm -rf out && rm -rf src/gen",
+    "invoke-local": "yarn run-ts tools/invoke.ts",
+    "invoke-local:example": "yarn invoke-local src/functions/example/index.default POST /greet '{\"content-type\":\"application/json\",\"authorization\":\"Bearer FULL\"}' '{\"person\":{\"name\":\"Henrik\", \"gender\": \"MALE\"}}'",
+    "lint": "eslint src --ext js,ts --max-warnings 0",
+    "run-ts": "NODE_PATH=src ts-node",
+    "test": "NODE_PATH=src jest --config src/test/jest.config.js"
+  }
+}
