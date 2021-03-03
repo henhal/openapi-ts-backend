@@ -94,6 +94,7 @@ export class OpenApi<RP extends object> {
    * @param params Parameters
    * @param [params.apiOptions] Options passed to the OpenAPIBackend instance.
    * @param [params.errorHandlerAsync] A function creating a response from an error thrown by the API.
+   * @param [params.logger] A logger, or null to suppress all logging
    */
   constructor({apiOptions, errorHandlerAsync = Errors.defaultErrorHandler, logger = consoleLogger}: {
     apiOptions?: ApiOptions;
@@ -255,6 +256,7 @@ export class OpenApi<RP extends object> {
       throw new Error(`No APIs are registered`);
     }
 
+    // Invoke the interceptors
     for (const interceptor of this.interceptors) {
       await interceptor(req, res, params);
     }
