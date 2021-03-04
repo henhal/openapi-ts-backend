@@ -32,7 +32,7 @@ async function invokeHandler() {
     body: JSON.stringify(parseJson(body)),
     headers: parseJson(headers),
     multiValueHeaders: {},
-    queryStringParameters: querystring.parse(query)
+    queryStringParameters: {...querystring.parse(query)}
   } as Lambda.APIGatewayEvent;
   const context = {} as Lambda.Context;
   const [p, n] = func.split('.');

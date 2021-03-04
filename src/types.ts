@@ -67,10 +67,6 @@ export type Response<Body = any, Headers extends Params = Params> = {
  */
 export type Awaitable<T> = T | Promise<T>;
 
-type NotFunction<T> = T extends Function ? never : T;
-
-export type Resolvable<T> = (NotFunction<T> | (() => T));
-
 export interface RequestParams<S = unknown, C = unknown> {
   source: S;
   context: C;

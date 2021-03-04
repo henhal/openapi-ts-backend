@@ -12,11 +12,20 @@ import {
   RawRequest,
   RawResponse,
   RegistrationParams,
-  Request, RequestParams, Resolvable,
+  Request,
+  RequestParams,
   Response,
 } from './types';
 import Operation from "./operation";
-import {formatValidationError, getParametersSchema, inRange, mapObject, oneOrMany, parseParameters} from './utils';
+import {
+  formatValidationError,
+  getParametersSchema,
+  inRange,
+  mapObject,
+  oneOrMany,
+  parseParameters,
+  Resolvable, resolve,
+} from './utils';
 import {createLogger, Logger} from './logger';
 
 // Note: Implementation of OpenAPI.Handler - these arguments match the call to api.handleRequest
@@ -87,7 +96,7 @@ export class OpenApi<S, C> {
   private interceptors: Interceptor<RequestParams<S, C>>[] = [];
   private apiPromises: Promise<OpenAPI.OpenAPIBackend>[] = [];
   private readonly errorHandlerAsync: ErrorHandler<RequestParams<S, C>>;
-  private context?: Resolvable<Awaitable<C>>;
+  private resolvableContext?: Resolvable<Awaitable<C>>;
   readonly logger: Logger;
 
   /**
@@ -97,11 +106,11 @@ export class OpenApi<S, C> {
    * @param [params.errorHandlerAsync] A function creating a response from an error thrown by the API.
    * @param [params.logger] A logger, or null to suppress all logging
    */
-  constructor({apiOptions, errorHandlerAsync = Errors.defaultErrorHandler, logger = consoleLogger, context}: {
+  constructor({apiOptions, errorHandlerAsync = Errors.defaultErrorHandler, logger = consoleLogger, resolvableContext}: {
     apiOptions?: ApiOptions;
     errorHandlerAsync?: ErrorHandler<RequestParams<S, C>>;
     logger?: Logger | null;
-    context?: Resolvable<Awaitable<C>>;
+    resolvableContext?: Resolvable<Awaitable<C>>;
   } = {}) {
     this.apiOptions = {
       handlers: {...defaultHandlers}, // must copy
@@ -109,13 +118,17 @@ export class OpenApi<S, C> {
     };
     this.errorHandlerAsync = errorHandlerAsync;
     this.logger = logger || noLogger;
-    this.context = context;
+    this.resolvableContext = resolvableContext;
   }
 
-  private getContextAsync(): C {
-    const {context} = this;
+  private async getContextAsync(): Promise<C> {
+    const {resolvableContext} = this;
 
-    return typeof context === 'function' ? (context as Function)() : context;
+    if (resolvableContext === undefined) {
+      return undefined as any;
+    }
+
+    return resolve<Awaitable<C>>(resolvableContext);
   }
 
   private getApisAsync(): Promise<Array<OpenAPI.OpenAPIBackend>> {
@@ -176,6 +189,11 @@ export class OpenApi<S, C> {
 
   protected validateResponse(response: Response, operation: OpenAPI.Operation, {api}: OpenAPI.Context) {
     const {statusCode, headers, body} = response;
+
+    // TODO Implement custom validation here instead.
+    // Option to control whether fail = throw or warn (default warn)
+    // if statusCode is specified in response schema, validate body and headers, else fail
+    // Option to control trimming of body and headers using removeAdditional: 'all' (default 'failing')
 
     this.handleValidationErrors(api.validateResponse(body, operation).errors, `Response body doesn't match schema`);
 

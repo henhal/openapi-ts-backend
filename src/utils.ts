@@ -3,6 +3,11 @@ import * as OpenAPI from 'openapi-backend';
 import Ajv, {ErrorObject} from 'ajv';
 import {Params, RawParams} from './types';
 
+export type OneOrMany<T> = T | Array<T>;
+
+// The "not a function restriction" solves TS2349 and enables using typeof === 'function' to determine if T is callable.
+export type Resolvable<T> = T extends Function ? never : T | (() => T);
+
 type ParamSchema = {
   type: 'object';
   required: string[];
@@ -10,9 +15,11 @@ type ParamSchema = {
   additionalProperties?: boolean;
 };
 
-export type OneOrMany<T> = T | Array<T>;
-
 const ajv = new Ajv({coerceTypes: 'array'});
+
+export function resolve<T>(resolvable: Resolvable<T>): T {
+  return typeof resolvable === 'function' ? resolvable() : resolvable;
+}
 
 export function formatValidationError(error: ErrorObject): string {
   return `At '${error.dataPath}': ${Object.entries(error.params)
