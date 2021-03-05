@@ -7,8 +7,8 @@ import {
   Awaitable,
   ErrorHandler,
   Interceptor,
-  OperationHandler,
-  PendingRawResponse,
+  OperationHandler, Params,
+  PendingRawResponse, RawParams,
   RawRequest,
   RawResponse,
   RegistrationParams,
@@ -23,8 +23,8 @@ import {
   inRange,
   mapObject,
   oneOrMany,
-  parseParameters,
-  Resolvable, resolve,
+  matchSchema,
+  Resolvable, resolve, ParameterType, formatArray,
 } from './utils';
 import {createLogger, Logger} from './logger';
 
@@ -34,11 +34,12 @@ type OpenApiHandler<P, T> = (apiContext: OpenAPI.Context, response: PendingRawRe
 export type ApiOptions = Pick<OpenAPI.Options, 'ajvOpts' | 'customizeAjv'>;
 
 const consoleLogger: Logger = createLogger(level => console[level].bind(null, `${level}:`));
-const noLogger: Logger = createLogger(level => () => {});
+const noLogger: Logger = createLogger(level => () => {
+});
 
 const defaultHandlers: Partial<OpenAPI.Options['handlers']> = Object.freeze({
   validationFail(apiContext) {
-    throw new Errors.ValidationFailError(apiContext);
+    throw new Errors.BadRequestError(apiContext);
   },
   notFound(apiContext) {
     throw new Errors.NotFoundError(apiContext);
@@ -51,38 +52,20 @@ const defaultHandlers: Partial<OpenAPI.Options['handlers']> = Object.freeze({
   },
 });
 
-function toRequest(req: OpenAPI.ParsedRequest, operation: OpenAPI.Operation): Request {
-  // Headers, path params and query params are coerced to their schema types
-  return {
-    method: req.method,
-    path: req.path,
-    params: parseParameters(req.params, getParametersSchema(operation, 'path')),
-    headers: parseParameters(req.headers, getParametersSchema(operation, 'header')),
-    query: parseParameters(req.query, getParametersSchema(operation, 'query')),
-    body: req.body,
-  };
-}
+function getDefaultStatusCode({responses = {}}: OpenAPI.Operation): number {
+  // If statusCode is not set and there is exactly one successful response, we use it automatically.
+  const codes = Object.keys(responses || {}).map(Number).filter(inRange(200, 400));
 
-function fromResponse(res: Response, {responses = {}}: OpenAPI.Operation): RawResponse {
-  let {statusCode, headers, body} = res;
-
-  if (statusCode === undefined) {
-    // If statusCode is not set and there is exactly one successful response, we use it automatically.
-    const codes = Object.keys(responses || {}).map(Number).filter(inRange(200, 400));
-
-    if (codes.length !== 1) {
-      // No statusCode given and it's impossible to determine a default one from the response schemas
-      throw new Error(`Ambiguous implicit response status code`);
-    }
-    statusCode = codes[0];
+  if (codes.length !== 1) {
+    // No statusCode given and it's impossible to determine a default one from the response schemas
+    throw new Error(`Cannot determine implicit status code from API definition response codes ${
+        JSON.stringify(codes)}`);
   }
-
-  return {
-    statusCode,
-    headers: mapObject(headers, oneOrMany(String)),
-    body,
-  };
+  return codes[0];
 }
+
+type FailStrategy = 'warn' | 'throw';
+type ResponseTrimming = 'none' | 'failing' | 'all';
 
 /**
  * A HTTP API using an OpenAPI definition.
@@ -98,6 +81,8 @@ export class OpenApi<S, C> {
   private readonly errorHandlerAsync: ErrorHandler<RequestParams<S, C>>;
   private resolvableContext?: Resolvable<Awaitable<C>>;
   readonly logger: Logger;
+  private invalidResponseStrategy: FailStrategy;
+  private responseTrimming: ResponseTrimming;
 
   /**
    * Constructor
@@ -106,12 +91,22 @@ export class OpenApi<S, C> {
    * @param [params.errorHandlerAsync] A function creating a response from an error thrown by the API.
    * @param [params.logger] A logger, or null to suppress all logging
    */
-  constructor({apiOptions, errorHandlerAsync = Errors.defaultErrorHandler, logger = consoleLogger, resolvableContext}: {
-    apiOptions?: ApiOptions;
-    errorHandlerAsync?: ErrorHandler<RequestParams<S, C>>;
-    logger?: Logger | null;
-    resolvableContext?: Resolvable<Awaitable<C>>;
-  } = {}) {
+  constructor(
+      {
+        apiOptions,
+        errorHandlerAsync = Errors.defaultErrorHandler,
+        logger = consoleLogger,
+        resolvableContext,
+        invalidResponseStrategy = 'warn',
+        responseTrimming = 'failing'
+      }: {
+        apiOptions?: ApiOptions;
+        errorHandlerAsync?: ErrorHandler<RequestParams<S, C>>;
+        logger?: Logger | null;
+        resolvableContext?: Resolvable<Awaitable<C>>;
+        invalidResponseStrategy?: FailStrategy;
+        responseTrimming?: ResponseTrimming;
+      } = {}) {
     this.apiOptions = {
       handlers: {...defaultHandlers}, // must copy
       ...apiOptions,
@@ -119,6 +114,8 @@ export class OpenApi<S, C> {
     this.errorHandlerAsync = errorHandlerAsync;
     this.logger = logger || noLogger;
     this.resolvableContext = resolvableContext;
+    this.invalidResponseStrategy = invalidResponseStrategy;
+    this.responseTrimming = responseTrimming;
   }
 
   private async getContextAsync(): Promise<C> {
@@ -151,34 +148,56 @@ export class OpenApi<S, C> {
     return api;
   }
 
+  private parseParams(rawParams: RawParams, operation: OpenAPI.Operation, type: ParameterType): Params {
+    const {result, errors} = matchSchema<RawParams, Params>(rawParams, getParametersSchema(operation, type));
+
+    this.handleValidationErrors(errors, `Request ${type} params don't match schema`, 'throw');
+
+    return result;
+  }
+
   private createHandler(
       operationHandler: OperationHandler<RequestParams<S, C>>,
       operationId: string,
   ): OpenApiHandler<RequestParams<S, C>, void> {
-    return async (apiContext, response, params) => {
-      const {operation, request} = apiContext;
+    return async (apiContext, pendingRes, params) => {
+      const {operation, request: req} = apiContext;
       this.logger.info(`Calling operation ${operationId}`);
 
-      const req = toRequest(request, operation);
+      const operationReq: Request = {
+        method: req.method,
+        path: req.path,
+        params: this.parseParams(req.params, operation, 'path'),
+        headers: this.parseParams(req.headers, operation, 'header'),
+        query: this.parseParams(req.query, operation, 'query'),
+        body: req.body,
+      };
 
       // TODO Should response be copied before re-typed and passed to the operation?
       //  Currently we broaden the type, pass it to the operation handler, then convert all params to strings and copy
       //  back to the same object.
-      const res: Response = response;
+      const operationRes = pendingRes as Response;
 
       // Note: The handler function may modify the "res" object and/or return a response body.
       // If "res.body" is undefined we use the return value as the body.
-      const result = await operationHandler(req, res, {apiContext, ...params});
-      res.body = res.body ?? result;
-      Object.assign(response, fromResponse(res, operation));
+      const resBody = await operationHandler(operationReq, operationRes, {apiContext, ...params});
+      operationRes.body = operationRes.body ?? resBody;
 
-      this.validateResponse(response, operation, apiContext);
+      const {statusCode = getDefaultStatusCode(operation), headers, body} = operationRes;
+
+      const res: RawResponse = Object.assign(pendingRes, {
+        statusCode,
+        headers: mapObject(headers, oneOrMany(String)),
+        body,
+      });
+
+      this.validateResponse(res, operation, apiContext);
     }
   }
 
   private createSecurityHandler<T>(
       authorizer: Authorizer<RequestParams<S, C>, T>,
-      name: string
+      name: string,
   ): OpenApiHandler<RequestParams<S, C>, T> {
     return async (apiContext, response: PendingRawResponse, params: RequestParams<S, C>) => {
       this.logger.info(`Calling authorizer ${name}`);
@@ -191,23 +210,36 @@ export class OpenApi<S, C> {
     const {statusCode, headers, body} = response;
 
     // TODO Implement custom validation here instead.
-    // Option to control whether fail = throw or warn (default warn)
+    // Option to control whether fail = throw or warn (default warn) -> failStrategy
     // if statusCode is specified in response schema, validate body and headers, else fail
-    // Option to control trimming of body and headers using removeAdditional: 'all' (default 'failing')
+    // Option to control trimming of body and headers using removeAdditional: 'all' (default 'failing') -> responseTrimming
 
-    this.handleValidationErrors(api.validateResponse(body, operation).errors, `Response body doesn't match schema`);
+    this.handleValidationErrors(
+        api.validateResponse(body, operation).errors,
+        `Response body doesn't match schema`,
+        this.invalidResponseStrategy);
 
-    this.handleValidationErrors(api.validateResponseHeaders(headers, operation, {
-      statusCode,
-      setMatchType: OpenAPI.SetMatchType.Superset,
-    }).errors, `Response headers don't match schema`);
+    this.handleValidationErrors(
+        api.validateResponseHeaders(headers, operation, {
+          statusCode,
+          setMatchType: OpenAPI.SetMatchType.Superset,
+        }).errors,
+        `Response headers don't match schema`,
+        this.invalidResponseStrategy);
   }
 
-  protected handleValidationErrors(errors: ErrorObject[] | null | undefined, message: string) {
+  protected handleValidationErrors(errors: ErrorObject[] | null | undefined, title: string, strategy: FailStrategy) {
     if (errors) {
-      // TODO constructor option invalidResponseAction: 'warn' | 'fail'
-      this.logger.warn(`${message}: ${JSON.stringify(errors.map(formatValidationError))}`);
+      this.fail(`${title}: ${formatArray(errors, formatValidationError)}`, strategy);
     }
+  }
+
+  private fail(message: string, strategy: FailStrategy) {
+    if (strategy === 'throw') {
+      throw new Error(message);
+    }
+
+    this.logger.warn(message);
   }
 
   /**
@@ -275,7 +307,7 @@ export class OpenApi<S, C> {
   protected async routeAsync(
       req: RawRequest,
       res: PendingRawResponse,
-      params: RequestParams<S, C>
+      params: RequestParams<S, C>,
   ): Promise<void> {
     const apis = await this.getApisAsync();
 

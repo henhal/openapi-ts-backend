@@ -27,9 +27,15 @@ export function formatValidationError(error: ErrorObject): string {
       .join(', ')}`;
 }
 
+export function formatArray<T>(items: T[], formatter: (item: T) => string, prefix = `\n  * `): string {
+  return items.map(item => `${prefix}${formatter(item)}`).join('');
+}
+
+export type ParameterType = 'header' | 'query' | 'path';
+
 export function getParametersSchema(
     {parameters = []}: OpenAPI.Operation,
-    type: 'header' | 'query' | 'path'
+    type: ParameterType
 ): ParamSchema {
   const result: ParamSchema = {type: 'object', required: [], properties: {}, additionalProperties: true};
 
@@ -48,22 +54,21 @@ export function getParametersSchema(
   return result;
 }
 
-export function parseParameters(params: Readonly<RawParams>, schema: ParamSchema): Params {
-  const result: RawParams = JSON.parse(JSON.stringify(params));
-  const validate = ajv.compile(schema)
+export function matchSchema<T, U>(source: Readonly<T>, schema: ParamSchema): {result: U, errors?: ErrorObject[]} {
+  // Ajv mutates the passed object so we pass a copy
+  const result = JSON.parse(JSON.stringify(source));
+  const validate = ajv.compile(schema);
 
   validate(result);
 
-  if (validate.errors) {
-    // TODO would need type of params for a meaningful error.
-    console.warn(`Request params don't match schema: ${JSON.stringify(validate.errors.map(formatValidationError))}`);
-
-    // TODO should we throw an error here? It means the parameters won't match the generated types
-  }
-
-  return result;
+  return {result, errors: validate.errors ?? undefined};
 }
 
+/**
+ * Map the values of an object
+ * @param obj Source object
+ * @param func Transform function
+ */
 export function mapObject<K extends string, V, W>(obj: Record<K, V>, func: (value: V, key: K, obj: Record<K, V>) => W) {
   return Object.fromEntries(Object.entries<V>(obj).map(([k, v]) => [k, func(v, k as K, obj)]));
 }
@@ -72,10 +77,20 @@ export function transform<T, U>(value: OneOrMany<T>, func: (value: T) => U): One
   return Array.isArray(value) ? value.map(func) : func(value);
 }
 
+/**
+ * Apply a transformation to a single value or an array of values
+ * @param func Transform function
+ * @returns Single transformed value or array of transformed values
+ */
 export function oneOrMany<T, U>(func: (value: T) => U): (value: OneOrMany<T>) => OneOrMany<U> {
   return value => Array.isArray(value) ? value.map(func) : func(value);
 }
 
+/**
+ * Return a number range validator function
+ * @param min Min value (inclusive)
+ * @param max Max value (exclusive)
+ */
 export function inRange(min: number, max: number): (value: number) => boolean {
   return value => value >= min && value < max;
 }

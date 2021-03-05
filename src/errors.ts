@@ -1,7 +1,7 @@
 import * as OpenAPI from "openapi-backend";
 
 import {ErrorHandler, PendingRawResponse, RawRequest} from "./types";
-import {formatValidationError} from './utils';
+import {formatArray, formatValidationError} from './utils';
 
 function formatOperationName(request: OpenAPI.ParsedRequest) {
   const {method, path} = request;
@@ -16,9 +16,9 @@ export abstract class ApiError extends Error {
   }
 }
 
-export class ValidationFailError extends ApiError {
+export class BadRequestError extends ApiError {
   constructor(context: OpenAPI.Context) {
-    super(context, `Invalid request: ${JSON.stringify(context.validation.errors!.map(formatValidationError))}`);
+    super(context, `Invalid request: ${formatArray(context.validation.errors!, formatValidationError)}`);
   }
 }
 
@@ -47,15 +47,15 @@ export class HttpError<Data extends Record<string, any> = any> extends Error {
 }
 
 function toHttpError(err: Error): HttpError {
-  if (err instanceof ValidationFailError) {
+  if (err instanceof BadRequestError) {
     const errors = err.context.validation.errors ?? [];
 
     console.warn(`Validation errors:`, errors);
 
     return new HttpError(`Invalid request`, 400, {
-      errors: errors.map(data => ({
-        message: `${data.dataPath} ${data.message}`,
-        data
+      errors: errors.map(error => ({
+        message: `${error.dataPath} ${error.message}`,
+        data: error
       }))
     });
   }
