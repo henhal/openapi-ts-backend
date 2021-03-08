@@ -29,7 +29,7 @@ import {
 import {createLogger, Logger} from './logger';
 
 // Note: Implementation of OpenAPI.Handler - these arguments match the call to api.handleRequest
-type OpenApiHandler<P, T> = (apiContext: OpenAPI.Context, response: PendingRawResponse, params: P) => Awaitable<T>;
+type OpenApiHandler<P extends RequestParams, T> = (apiContext: OpenAPI.Context, data: HandlerData<P>) => Awaitable<T>;
 
 export type ApiOptions = Pick<OpenAPI.Options, 'ajvOpts' | 'customizeAjv'>;
 
@@ -66,6 +66,37 @@ function getDefaultStatusCode({responses = {}}: OpenAPI.Operation): number {
 
 type FailStrategy = 'warn' | 'throw';
 type ResponseTrimming = 'none' | 'failing' | 'all';
+
+type HandlerData<P extends RequestParams> = {
+  req?: Request;
+  res: PendingRawResponse;
+  params: P;
+};
+
+class RequestImpl<Body = any,
+    PathParams extends Params = Params,
+    Query extends Params = Params,
+    Headers extends Params = Params> implements Request<Body, PathParams, Query, Headers> {
+  readonly method: string;
+  readonly path: string;
+  readonly params: PathParams;
+  readonly query: Query;
+  readonly headers: Headers;
+  readonly body: Body;
+  readonly operation: Operation;
+  private readonly apiContext: OpenAPI.Context;
+
+  constructor(req: Request<Body, PathParams, Query, Headers>, op: Operation, apiContext: OpenAPI.Context) {
+    this.method = req.method;
+    this.path = req.path;
+    this.params = req.params;
+    this.headers = req.headers;
+    this.query = req.query;
+    this.body = req.body;
+    this.operation = op;
+    this.apiContext = apiContext;
+  }
+}
 
 /**
  * A HTTP API using an OpenAPI definition.
@@ -156,53 +187,59 @@ export class OpenApi<S, C> {
     return result;
   }
 
+  private createRequest(apiContext: OpenAPI.Context): Request {
+    const {request: {method, path, params, headers, query, body}, operation} = apiContext;
+
+    return {
+      method,
+      path,
+      params: this.parseParams(params, operation, 'path'),
+      headers: this.parseParams(headers, operation, 'header'),
+      query: this.parseParams(query, operation, 'query'),
+      body
+    };
+  }
+
   private createHandler(
       operationHandler: OperationHandler<RequestParams<S, C>>,
       operationId: string,
   ): OpenApiHandler<RequestParams<S, C>, void> {
-    return async (apiContext, pendingRes, params) => {
-      const {operation, request: req} = apiContext;
+    return async (apiContext, data) => {
+      const {operation} = apiContext;
+      const {req = this.createRequest(apiContext), res, params} = data;
       this.logger.info(`Calling operation ${operationId}`);
-
-      const operationReq: Request = {
-        method: req.method,
-        path: req.path,
-        params: this.parseParams(req.params, operation, 'path'),
-        headers: this.parseParams(req.headers, operation, 'header'),
-        query: this.parseParams(req.query, operation, 'query'),
-        body: req.body,
-      };
 
       // TODO Should response be copied before re-typed and passed to the operation?
       //  Currently we broaden the type, pass it to the operation handler, then convert all params to strings and copy
       //  back to the same object.
-      const operationRes = pendingRes as Response;
+      // TODO better to pass around a Response instead of RawResponse and only convert it at the last moment in routeAsync?
+      const operationRes = res as Response;
 
       // Note: The handler function may modify the "res" object and/or return a response body.
       // If "res.body" is undefined we use the return value as the body.
-      const resBody = await operationHandler(operationReq, operationRes, {apiContext, ...params});
+      const resBody = await operationHandler(req, operationRes, {apiContext, ...params});
       operationRes.body = operationRes.body ?? resBody;
 
       const {statusCode = getDefaultStatusCode(operation), headers, body} = operationRes;
 
-      const res: RawResponse = Object.assign(pendingRes, {
+      Object.assign(res, {
         statusCode,
         headers: mapObject(headers, oneOrMany(String)),
         body,
       });
 
-      this.validateResponse(res, operation, apiContext);
-    }
+      this.validateResponse(res as RawResponse, operation, apiContext);
+    };
   }
 
   private createSecurityHandler<T>(
       authorizer: Authorizer<RequestParams<S, C>, T>,
       name: string,
   ): OpenApiHandler<RequestParams<S, C>, T> {
-    return async (apiContext, response: PendingRawResponse, params: RequestParams<S, C>) => {
+    return async (apiContext, {res, params}) => {
       this.logger.info(`Calling authorizer ${name}`);
 
-      return authorizer(apiContext.request, response, {apiContext, ...params});
+      return authorizer(apiContext.request, res, {apiContext, ...params});
     };
   }
 
@@ -328,7 +365,7 @@ export class OpenApi<S, C> {
         this.logger.debug(`Attempting to route ${req.path} to ${api.apiRoot}`);
 
         this.logger.info(`Calling api.handleRequest with ${JSON.stringify(res)}`);
-        return await api.handleRequest(req, res, params);
+        return await api.handleRequest(req, {res, params});
       } catch (e) {
         if (e instanceof Errors.NotFoundError) {
           this.logger.debug(`Route ${req.path} not found in ${api.apiRoot}`);

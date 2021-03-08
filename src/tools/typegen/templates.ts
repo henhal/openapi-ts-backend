@@ -40,11 +40,12 @@ export type Schemas = components['schemas'];
 `;
 
 export const operations = `
-import {OperationHandler, Params, Request, Response} from 'openapi-ts-backend';
+import {OperationHandler, Params, Request, RequestParams, Response} from 'openapi-ts-backend';
 import {operations} from './spec';
 import {RequestBody, RequestHeaders, RequestPathParams, RequestQuery, ResponseBody, ResponseHeaders} from './helpers';
 
-export type OperationRequest<OperationId extends keyof operations> =
+export type OperationRequest
+<OperationId extends keyof operations> =
     Request<
         RequestBody<OperationId>,
         Params & RequestPathParams<OperationId>,
@@ -56,7 +57,7 @@ export type OperationResponse<OperationId extends keyof operations> =
         ResponseBody<OperationId>,
         Params & ResponseHeaders<OperationId>>;
 
-export type Operation<P, OperationId extends keyof operations> =
+export type Operation<P extends RequestParams, OperationId extends keyof operations> =
     OperationHandler<P,
         OperationRequest<OperationId>,
         OperationResponse<OperationId>>;

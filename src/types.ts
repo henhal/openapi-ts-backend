@@ -17,17 +17,17 @@ export type RawParams = Record<string, OneOrMany<string>>;
  * @property query Query string or parsed query object
  *
  */
-export type Request<Body = any,
+export interface Request<Body = any,
     PathParams extends Params = Params,
     Query extends Params = Params,
-    Headers extends Params = Params> = {
+    Headers extends Params = Params> {
   method: string;
   path: string;
   params: PathParams;
   query: Query;
   headers: Headers;
   body: Body;
-};
+}
 
 export type RawRequest = {
   method: string;
@@ -56,11 +56,11 @@ export type PendingRawResponse = {
  * @property body Body content which will be sent as JSON
  * @property headers Headers
  */
-export type Response<Body = any, Headers extends Params = Params> = {
+export interface Response<Body = any, Headers extends Params = Params> {
   statusCode?: number;
   headers: Partial<Headers>;
   body?: Body;
-};
+}
 
 /**
  * @template T Type of value or promised value
