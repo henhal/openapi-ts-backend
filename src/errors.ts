@@ -1,6 +1,6 @@
 import * as OpenAPI from "openapi-backend";
 
-import {ErrorHandler, PendingRawResponse, RawRequest} from "./types";
+import {ErrorHandler} from "./types";
 import {formatArray, formatValidationError} from './utils';
 
 function formatOperationName(request: OpenAPI.ParsedRequest) {
@@ -50,6 +50,7 @@ function toHttpError(err: Error): HttpError {
   if (err instanceof BadRequestError) {
     const errors = err.context.validation.errors ?? [];
 
+    // TODO logger
     console.warn(`Validation errors:`, errors);
 
     return new HttpError(`Invalid request`, 400, {
@@ -70,7 +71,7 @@ function toHttpError(err: Error): HttpError {
 
   if (err instanceof UnauthorizedError) {
     const {authorized, ...results} = err.context.security;
-    let statusCode: number | undefined;
+    let statusCode: number | undefined = undefined;
 
     const errors = Object.entries(results)
         .filter(([, result]) => !result || result.error)

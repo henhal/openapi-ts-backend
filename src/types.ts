@@ -4,8 +4,8 @@ import {OneOrMany} from './utils';
 
 export type ApiContext = OpenAPI.Context;
 
-export type Params<K extends string = string> = Record<K, OneOrMany<string | number | boolean> | undefined>;
-export type RawParams = Record<string, OneOrMany<string>>;
+export type Params<K extends string = string, V = string | number | boolean | undefined> = Record<K, OneOrMany<V>>;
+export type RawParams = Params<string, string>;
 
 /**
  * Request
@@ -17,7 +17,7 @@ export type RawParams = Record<string, OneOrMany<string>>;
  * @property query Query string or parsed query object
  *
  */
-export interface Request<Body = any,
+export interface Request<Body = unknown,
     PathParams extends Params = Params,
     Query extends Params = Params,
     Headers extends Params = Params> {
@@ -43,12 +43,6 @@ export type RawResponse = {
   body?: unknown
 };
 
-export type PendingRawResponse = {
-  statusCode?: number;
-  headers: RawParams;
-  body?: unknown
-};
-
 /**
  * Response - this is an output parameter for a handler function to fill in
  * @template B Type of response body
@@ -56,7 +50,7 @@ export type PendingRawResponse = {
  * @property body Body content which will be sent as JSON
  * @property headers Headers
  */
-export interface Response<Body = any, Headers extends Params = Params> {
+export interface Response<Body = unknown, Headers extends Params = Params> {
   statusCode?: number;
   headers: Partial<Headers>;
   body?: Body;
@@ -70,6 +64,7 @@ export type Awaitable<T> = T | Promise<T>;
 export interface RequestParams<S = unknown, C = unknown> {
   source: S;
   context: C;
+  // TODO api: OpenApi;
 }
 
 /**
@@ -161,7 +156,7 @@ export type Authorizer<P extends RequestParams, T = unknown> = Handler<P & Opera
 export type RegistrationParams<P extends RequestParams> = {
   definition: OpenAPI.Document | string;
   operations: Record<string, OperationHandler<P>>;
-  authorizers?: Record<string, Authorizer<P, any>>;
+  authorizers?: Record<string, Authorizer<P, unknown>>;
   path?: string;
 };
 

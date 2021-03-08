@@ -7,8 +7,9 @@ import {
   Awaitable,
   ErrorHandler,
   Interceptor,
-  OperationHandler, Params,
-  PendingRawResponse, RawParams,
+  OperationHandler,
+  Params,
+  RawParams,
   RawRequest,
   RawResponse,
   RegistrationParams,
@@ -18,15 +19,27 @@ import {
 } from './types';
 import Operation from "./operation";
 import {
+  formatArray,
   formatValidationError,
   getParametersSchema,
   inRange,
   mapObject,
-  oneOrMany,
   matchSchema,
-  Resolvable, resolve, ParameterType, formatArray,
+  oneOrMany,
+  ParameterType,
+  Resolvable,
+  resolve,
 } from './utils';
 import {createLogger, Logger} from './logger';
+
+type FailStrategy = 'warn' | 'throw';
+type ResponseTrimming = 'none' | 'failing' | 'all';
+
+type HandlerData<P extends RequestParams> = {
+  req?: Request;
+  res: Response;
+  params: P;
+};
 
 // Note: Implementation of OpenAPI.Handler - these arguments match the call to api.handleRequest
 type OpenApiHandler<P extends RequestParams, T> = (apiContext: OpenAPI.Context, data: HandlerData<P>) => Awaitable<T>;
@@ -64,15 +77,7 @@ function getDefaultStatusCode({responses = {}}: OpenAPI.Operation): number {
   return codes[0];
 }
 
-type FailStrategy = 'warn' | 'throw';
-type ResponseTrimming = 'none' | 'failing' | 'all';
-
-type HandlerData<P extends RequestParams> = {
-  req?: Request;
-  res: PendingRawResponse;
-  params: P;
-};
-
+// TODO
 class RequestImpl<Body = any,
     PathParams extends Params = Params,
     Query extends Params = Params,
@@ -112,8 +117,8 @@ export class OpenApi<S, C> {
   private readonly errorHandlerAsync: ErrorHandler<RequestParams<S, C>>;
   private resolvableContext?: Resolvable<Awaitable<C>>;
   readonly logger: Logger;
-  private invalidResponseStrategy: FailStrategy;
-  private responseTrimming: ResponseTrimming;
+  readonly invalidResponseStrategy: FailStrategy;
+  readonly responseTrimming: ResponseTrimming;
 
   /**
    * Constructor
@@ -214,6 +219,8 @@ export class OpenApi<S, C> {
       const resBody = await operationHandler(req, res, {apiContext, ...params});
       res.body = res.body ?? resBody;
       res.statusCode = res.statusCode ?? getDefaultStatusCode(operation);
+      // TODO Response class with methods?
+      // res.setStatusCode(200).setBody({foo: 42}).addHeaders({bar:42})
 
       // const {statusCode = getDefaultStatusCode(operation), headers, body} = res;
       //
