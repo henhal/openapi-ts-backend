@@ -86,14 +86,14 @@ export interface RequestParams<S = unknown, C = unknown> {
  */
 export type ErrorHandler<P extends RequestParams = RequestParams> = (
     req: RawRequest,
-    res: PendingRawResponse,
+    res: Response,
     params: P,
     err: Error,
 ) => Awaitable<void>
 
 export type Handler<P extends RequestParams, T> = (
     req: RawRequest,
-    res: PendingRawResponse,
+    res: Response,
     params: P
 ) => Awaitable<T>;
 

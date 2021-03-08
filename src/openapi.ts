@@ -209,26 +209,21 @@ export class OpenApi<S, C> {
       const {req = this.createRequest(apiContext), res, params} = data;
       this.logger.info(`Calling operation ${operationId}`);
 
-      // TODO Should response be copied before re-typed and passed to the operation?
-      //  Currently we broaden the type, pass it to the operation handler, then convert all params to strings and copy
-      //  back to the same object.
-      // TODO better to pass around a Response instead of RawResponse and only convert it at the last moment in routeAsync?
-      const operationRes = res as Response;
-
       // Note: The handler function may modify the "res" object and/or return a response body.
       // If "res.body" is undefined we use the return value as the body.
-      const resBody = await operationHandler(req, operationRes, {apiContext, ...params});
-      operationRes.body = operationRes.body ?? resBody;
+      const resBody = await operationHandler(req, res, {apiContext, ...params});
+      res.body = res.body ?? resBody;
+      res.statusCode = res.statusCode ?? getDefaultStatusCode(operation);
 
-      const {statusCode = getDefaultStatusCode(operation), headers, body} = operationRes;
+      // const {statusCode = getDefaultStatusCode(operation), headers, body} = res;
+      //
+      // Object.assign(res, {
+      //   statusCode,
+      //   headers: mapObject(headers, oneOrMany(String)),
+      //   body,
+      // });
 
-      Object.assign(res, {
-        statusCode,
-        headers: mapObject(headers, oneOrMany(String)),
-        body,
-      });
-
-      this.validateResponse(res as RawResponse, operation, apiContext);
+      this.validateResponse(res, operation, apiContext);
     };
   }
 
@@ -343,7 +338,7 @@ export class OpenApi<S, C> {
    */
   protected async routeAsync(
       req: RawRequest,
-      res: PendingRawResponse,
+      res: Response,
       params: RequestParams<S, C>,
   ): Promise<void> {
     const apis = await this.getApisAsync();
@@ -393,7 +388,7 @@ export class OpenApi<S, C> {
     const id = `${req.method.toUpperCase()} ${req.path}`;
     this.logger.info(`->${id}`);
 
-    const res: PendingRawResponse = {headers: {}};
+    const res: Response = {headers: {}};
 
     try {
       await this.routeAsync(req, res, params);
@@ -406,6 +401,12 @@ export class OpenApi<S, C> {
 
     this.logger.info(`<-${id}: ${res.statusCode}`);
 
-    return res as RawResponse;
+    const {statusCode = 500, headers, body} = res;
+
+    return {
+      statusCode,
+      headers: mapObject(headers, oneOrMany(String)),
+      body,
+    };
   }
 }
