@@ -1,21 +1,12 @@
-import * as OpenAPI from 'openapi-backend';
-
 import Ajv, {ErrorObject} from 'ajv';
-import {Params, RawParams} from './types';
+import {OpenAPIV3} from 'openapi-types';
 
 export type OneOrMany<T> = T | Array<T>;
 
 // The "not a function restriction" solves TS2349 and enables using typeof === 'function' to determine if T is callable.
 export type Resolvable<T> = T extends Function ? never : T | (() => T);
 
-type ParamSchema = {
-  type: 'object';
-  required: string[];
-  properties: Record<string, any>;
-  additionalProperties?: boolean;
-};
-
-const ajv = new Ajv({coerceTypes: 'array'});
+const matchingAjv = new Ajv({coerceTypes: 'array'});
 
 export function resolve<T>(resolvable: Resolvable<T>): T {
   return typeof resolvable === 'function' ? resolvable() : resolvable;
@@ -34,19 +25,19 @@ export function formatArray<T>(items: T[], formatter: (item: T) => string, prefi
 export type ParameterType = 'header' | 'query' | 'path';
 
 export function getParametersSchema(
-    {parameters = []}: OpenAPI.Operation,
+    {parameters = []}: OpenAPIV3.OperationObject,
     type: ParameterType
-): ParamSchema {
-  const result: ParamSchema = {type: 'object', required: [], properties: {}, additionalProperties: true};
+): OpenAPIV3.SchemaObject {
+  const result: OpenAPIV3.SchemaObject = {type: 'object', required: [], properties: {}, additionalProperties: true};
 
   for (const parameter of parameters) {
     if ('in' in parameter && parameter.in === type) {
       const {name, required = false, schema = {}} = parameter;
 
-      result.properties[name] = schema;
+      result.properties![name] = schema;
 
       if (required) {
-        result.required.push(name);
+        result.required!.push(name);
       }
     }
   }
@@ -54,14 +45,18 @@ export function getParametersSchema(
   return result;
 }
 
-export function matchSchema<T, U>(source: Readonly<T>, schema: ParamSchema): {result: U, errors?: ErrorObject[]} {
+export function matchSchema<T, U>(source: Readonly<T>, schema: OpenAPIV3.SchemaObject): {result: U, errors?: ErrorObject[]} {
   // Ajv mutates the passed object so we pass a copy
-  const result = JSON.parse(JSON.stringify(source));
-  const validate = ajv.compile(schema);
+  const result = cloneObject(source);
+  const validate = matchingAjv.compile(schema);
 
   validate(result);
 
   return {result, errors: validate.errors ?? undefined};
+}
+
+function cloneObject<T>(source: Readonly<T>) {
+  return JSON.parse(JSON.stringify(source));
 }
 
 /**
