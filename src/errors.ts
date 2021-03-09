@@ -54,9 +54,9 @@ function toHttpError(err: Error): HttpError {
     console.warn(`Validation errors:`, errors);
 
     return new HttpError(`Invalid request`, 400, {
-      errors: errors.map(error => ({
-        message: `${error.dataPath} ${error.message}`,
-        data: error
+      errors: errors.map(({dataPath, message, keyword, params}) => ({
+        message: `${dataPath || 'Request'} ${message}`,
+        data: {keyword, dataPath, params}
       }))
     });
   }

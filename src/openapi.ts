@@ -232,6 +232,8 @@ export class OpenApi<S, C> {
       // If "res.body" is undefined we use the return value as the body.
       const resBody = await operationHandler(req, res, {apiContext, ...params});
       res.body = res.body ?? resBody;
+
+      // If status code is not specified and a non-ambiguous default status code is available, use it
       res.statusCode = res.statusCode ?? getDefaultStatusCode(operation);
 
       this.validateResponse(apiContext, res);

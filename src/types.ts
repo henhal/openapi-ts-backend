@@ -52,7 +52,6 @@ export interface Response<Body = unknown, Headers extends Params = Params> {
 // TODO Response class with methods?
 // res.complete(201, {body, headers: {'x-foo': 42}})
 
-
 export type RawRequest = {
   method: string;
   path: string;
@@ -75,7 +74,7 @@ export type Awaitable<T> = T | Promise<T>;
 export interface RequestParams<S = unknown, C = unknown> {
   source: S;
   context: C;
-  // TODO api: OpenApi;
+  // TODO api: OpenApi ?
 }
 
 /**
@@ -83,7 +82,8 @@ export interface RequestParams<S = unknown, C = unknown> {
  * a request could not be routed at all.
  * This function should modify the response accordingly, by _at least_ setting res.statusCode.
  *
- * @template C      Type of context
+ * @template P      Type of request params
+ *
  * @param req       Request
  * @param res       Response
  * @param context   Context
@@ -97,7 +97,7 @@ export type ErrorHandler<P extends RequestParams = RequestParams> = (
     err: Error,
 ) => Awaitable<void>
 
-export type Handler<P extends RequestParams, T> = (
+type Handler<P extends RequestParams, T> = (
     req: RawRequest,
     res: Response,
     params: P
@@ -119,11 +119,13 @@ export interface OperationParams {
  * A handler implementing a single API operation
  * This function may alter the given response object and/or return a response body.
  * If res.body is not set when this function returns, the return value of the handler will be used as the response body.
- * If res.statusCode is not set when this function returns, 200 will be used.
+ * If res.statusCode is not set when this function returns and a single 2xx status code exists in the response schema,
+ * it will be used. Otherwise, not setting any status code will cause a 500 error.
  *
  * @template P          Type of context
- * @template ReqBody    Type of request body
- * @template ResBody    Type of response body
+ * @template Req        Type of request
+ * @template Res        Type of response
+ *
  * @param req           Request
  * @param res           Response
  * @param context       Context
@@ -147,18 +149,20 @@ export type OperationHandler<P extends RequestParams,
  * Example: If an authorized is registered for the security scheme "ApiKey", the value returned
  * from the authorizer will be stored in context.security['ApiKey'].
  *
- * @template C  Type of context
- * @template T  Type of produced security scheme data
+ * @template P  Type of params
+ * @template R  Type of produced result for this security scheme, e.g. a session, user object or similar
+ *
  * @param req       Request
  * @param res       Response
- * @param context   Context
+ * @param params    Request params
  * @async
- * @returns Security scheme data
+ * @returns Security scheme result
  */
-export type Authorizer<P extends RequestParams, T = unknown> = Handler<P & OperationParams, T>;
+export type Authorizer<P extends RequestParams, R = unknown> = Handler<P & OperationParams, R>;
 
 /**
- * @template C Type of context
+ * @template P Type of params
+ *
  * @property definition     Path to an OpenAPI specification file, or an OpenAPI specification object.
  * @property operations     Map of operationId:s in the definition to OperationHandler functions
  * @property [authorizers]  Map of securityScheme names in the definition to Authorizer functions
@@ -167,7 +171,7 @@ export type Authorizer<P extends RequestParams, T = unknown> = Handler<P & Opera
 export type RegistrationParams<P extends RequestParams> = {
   definition: OpenAPI.Document | string;
   operations: Record<string, OperationHandler<P>>;
-  authorizers?: Record<string, Authorizer<P, unknown>>;
+  authorizers?: Record<string, Authorizer<P>>;
   path?: string;
 };
 
