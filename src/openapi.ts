@@ -29,6 +29,7 @@ import {
   ParameterType,
 } from './utils';
 import {createLogger, getLogLevels, Logger} from './logger';
+import {OpenAPIV3} from 'openapi-types';
 
 type FailStrategy = 'warn' | 'throw';
 type ResponseTrimming = 'none' | 'failing' | 'all';
@@ -54,17 +55,17 @@ const noLogger: Logger = createLogger(level => nop);
 
 const defaultHandlers: Partial<OpenAPI.Options['handlers']> = Object.freeze({
   validationFail(apiContext) {
-    throw new Errors.BadRequestError(apiContext);
+    throw new Errors.BadRequestError(apiContext.request, apiContext.validation.errors!);
   },
   notFound(apiContext) {
-    throw new Errors.NotFoundError(apiContext);
+    throw new Errors.NotFoundError(apiContext.request);
   },
   notImplemented(apiContext) {
-    throw new Errors.NotImplementedError(apiContext);
+    throw new Errors.NotImplementedError(apiContext.request);
   },
-  unauthorizedHandler(apiContext) {
-    throw new Errors.UnauthorizedError(apiContext);
-  },
+  // unauthorizedHandler(apiContext) {
+  //   throw new Errors.UnauthorizedError(apiContext);
+  // },
 });
 
 function isRawRequest(req: any): req is RawRequest {
@@ -84,16 +85,6 @@ function getDefaultStatusCode({responses = {}}: OpenAPI.Operation): number {
   }
   return codes[0];
 }
-
-type SecurityRequirement<R> = {
-  name: string;
-  scheme: any;
-  parameters: {
-    scopes?: string[];
-  };
-  result?: R;
-  error?: Error;
-};
 
 /**
  * A HTTP API using an OpenAPI definition.
@@ -152,12 +143,12 @@ export class OpenApi<T> {
     const api = await new OpenAPI.OpenAPIBackend(apiOptions).init();
 
     for (const [id, handler] of Object.entries(operations)) {
-      api.registerHandler(id, this.createHandler(handler, id));
+      api.registerHandler(id, this.createHandler(handler, id, authorizers));
     }
 
-    for (const [scheme, handler] of Object.entries(authorizers)) {
-      api.registerSecurityHandler(scheme, this.createSecurityHandler(handler, scheme));
-    }
+    // for (const [scheme, handler] of Object.entries(authorizers)) {
+    //   api.registerSecurityHandler(scheme, this.createSecurityHandler(handler, scheme));
+    // }
 
     return api;
   }
@@ -196,22 +187,51 @@ export class OpenApi<T> {
   private createHandler(
       operationHandler: OperationHandler<T>,
       operationId: string,
-  ): OpenApiHandler<T, void> {
+      authorizers: Record<string, Authorizer<T>>): OpenApiHandler<T, void> {
     return async (apiContext, data) => {
       // Parse the request the first time
       // TODO currently this handler is not re-used so caching it in data makes no difference really
       data.req = data.req ?? this.parseRequest(apiContext);
 
-      const {operation, security} = apiContext;
+      const {api: {definition}, operation} = apiContext;
       const {req, res, params} = data;
+      const results: Record<string, any> = {};
+      const operationParams = {operation, security: {results}, definition, ...params};
 
-      const requirements: SecurityRequirement<any>[] =
+      const errors: Error[] = [];
+      let authorized = true;
+
+      // Handle authorization here instead of using security handlers, to enable passing scopes etc
+      for (const securityRequirement of operation.security ?? definition.security ?? []) {
+        authorized = true;
+
+        for (const [name, scopes] of Object.entries(securityRequirement)) {
+          try {
+            results[name] = await authorizers[name](req, res, operationParams, {
+              name,
+              scheme: definition.components?.securitySchemes?.[name] as OpenAPIV3.SecuritySchemeObject,
+              parameters: {scopes}
+            });
+          } catch (error) {
+            authorized = false;
+            errors.push(error);
+          }
+        }
+
+        if (authorized) {
+          break;
+        }
+      }
+
+      if (!authorized) {
+        throw new Errors.UnauthorizedError(apiContext.request, errors);
+      }
 
       this.logger.info(`Calling operation ${operationId}`);
 
       // Note: The handler function may modify the "res" object and/or return a response body.
       // If "res.body" is undefined we use the return value as the body.
-      const resBody = await operationHandler(req, res, {operation, security, ...params});
+      const resBody = await operationHandler(req, res, operationParams);
       res.body = res.body ?? resBody;
 
       // If status code is not specified and a non-ambiguous default status code is available, use it
@@ -221,18 +241,18 @@ export class OpenApi<T> {
     };
   }
 
-  private createSecurityHandler<R>(
-      authorizer: Authorizer<T, R>,
-      name: string,
-  ): OpenApiHandler<T, R> {
-    return async (apiContext, {res, params}) => {
-      const {operation, security} = apiContext;
-
-      this.logger.info(`Calling authorizer ${name}`);
-
-      return authorizer(apiContext.request, res, {operation, security, ...params});
-    };
-  }
+  // private createSecurityHandler<R>(
+  //     authorizer: Authorizer<T, R>,
+  //     name: string,
+  // ): OpenApiHandler<T, R> {
+  //   return async (apiContext, {res, params}) => {
+  //     const {operation, security} = apiContext;
+  //
+  //     this.logger.info(`Calling authorizer ${name}`);
+  //
+  //     return authorizer(apiContext.request, res, {operation, security, ...params});
+  //   };
+  // }
 
   protected validateResponse({api, operation}: OpenAPI.Context, response: Response) {
     const {statusCode, headers, body} = response;

@@ -1,4 +1,4 @@
-import {HttpError, LambdaOpenApi, LambdaOperationParams, LambdaSource, RawRequest} from 'openapi-ts-backend';
+import {HttpError, LambdaOpenApi, LambdaSource, Request, SecurityRequirement} from 'openapi-ts-backend';
 
 import {Operations} from 'gen/example-api';
 
@@ -61,6 +61,7 @@ function verifyAccessToken(jwt: string): AuthSession {
   if (jwt in DEBUG_SESSIONS) {
     return DEBUG_SESSIONS[jwt];
   }
+  console.log('no token')
   throw new HttpError(`Invalid token`, 401);
 }
 
@@ -75,7 +76,8 @@ function verifyScopes(grantedScopes: string[], requiredScopes: string[]) {
   }
 }
 
-function authorize<T>(req: RawRequest, {operation}: LambdaOperationParams<T>): AuthSession {
+function authorize<T>(req: Request, requirement: SecurityRequirement): AuthSession {
+  console.debug(`Authorize`, requirement);
   const header = req.headers?.['authorization'];
 
   if (typeof header !== 'string') {
@@ -83,13 +85,13 @@ function authorize<T>(req: RawRequest, {operation}: LambdaOperationParams<T>): A
   }
 
   const session = verifyAccessToken(header.substring('Bearer '.length));
-
+  console.debug(`Session:`, session)
   // Verify scopes required for the current operation against scopes granted by the token
-  for (const {AccessToken: requiredScopes} of operation.security!) {
-    console.debug(`Operation requires scopes ${requiredScopes}`);
-    if (requiredScopes) {
-      verifyScopes(session.scopes, requiredScopes);
-    }
+  const requiredScopes = requirement.parameters.scopes;
+
+  console.debug(`Operation requires scopes ${requiredScopes}`);
+  if (requiredScopes) {
+    verifyScopes(session.scopes, requiredScopes);
   }
 
   return session;
@@ -140,9 +142,9 @@ export default new LambdaOpenApi<CustomParams>()
     .register({
       definition,
       authorizers: {
-        AccessToken: (req, res, params) => {
+        AccessToken: (req, res, params, requirement ) => {
           //console.debug(`AccessToken: res=${JSON.stringify(res)}`);
-          return authorize(req, params);
+          return authorize(req, requirement);
         }
       },
       operations,

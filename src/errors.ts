@@ -1,43 +1,44 @@
 import * as OpenAPI from "openapi-backend";
 
-import {ErrorHandler} from "./types";
+import {ErrorHandler, RawRequest} from "./types";
 import {formatArray, formatValidationError} from './utils';
 import {OpenApi} from './openapi';
+import {ErrorObject} from 'ajv';
 
-function formatOperationName(request: OpenAPI.ParsedRequest) {
+function formatOperationName(request: RawRequest) {
   const {method, path} = request;
 
   return `${method.toUpperCase()} ${path}`;
 }
 
 export abstract class ApiError extends Error {
-  protected constructor(readonly context: OpenAPI.Context, message?: string) {
+  protected constructor(readonly request: RawRequest, message?: string) {
     super(message);
     this.name = this.constructor.name;
   }
 }
 
 export class BadRequestError extends ApiError {
-  constructor(context: OpenAPI.Context) {
-    super(context, `Invalid request: ${formatArray(context.validation.errors!, formatValidationError)}`);
+  constructor(request: RawRequest, readonly errors: ErrorObject[]) {
+    super(request, `Invalid request: ${formatArray(errors, formatValidationError)}`);
   }
 }
 
 export class NotFoundError extends ApiError {
-  constructor(context: OpenAPI.Context) {
-    super(context, `Unknown operation ${formatOperationName(context.request)}`);
+  constructor(request: RawRequest) {
+    super(request, `Unknown operation ${formatOperationName(request)}`);
   }
 }
 
 export class NotImplementedError extends ApiError {
-  constructor(context: OpenAPI.Context) {
-    super(context, `Operation ${formatOperationName(context.request)} not implemented`);
+  constructor(request: RawRequest) {
+    super(request, `Operation ${formatOperationName(request)} not implemented`);
   }
 }
 
 export class UnauthorizedError extends ApiError {
-  constructor(context: OpenAPI.Context) {
-    super(context, `Operation ${formatOperationName(context.request)} not authorized`);
+  constructor(request: RawRequest, readonly errors: Error[]) {
+    super(request, `Operation ${formatOperationName(request)} not authorized`);
   }
 }
 
@@ -49,10 +50,8 @@ export class HttpError<Data extends Record<string, any> = any> extends Error {
 
 function toHttpError(err: Error, {logger}: OpenApi<unknown>): HttpError {
   if (err instanceof BadRequestError) {
-    const errors = err.context.validation.errors ?? [];
-
     return new HttpError(`Invalid request`, 400, {
-      errors: errors.map(({dataPath, message, keyword, params}) => ({
+      errors: err.errors.map(({dataPath, message, keyword, params}) => ({
         message: `${dataPath || 'Request'} ${message}`,
         data: {keyword, dataPath, params}
       }))
@@ -68,18 +67,15 @@ function toHttpError(err: Error, {logger}: OpenApi<unknown>): HttpError {
   }
 
   if (err instanceof UnauthorizedError) {
-    const {authorized, ...results} = err.context.security;
     let statusCode: number | undefined = undefined;
 
-    const errors = Object.entries(results)
-        .filter(([, result]) => !result || result.error)
-        .map(([scheme, result]) => {
-          const {message = `Authorization scheme failed`, statusCode: subStatusCode, data} = result?.error || {};
+    const errors = err.errors.map(error => {
+      const {message = `Authorization scheme failed`, statusCode: subStatusCode, data} = error as any;
 
-          statusCode = statusCode ?? subStatusCode;
+      statusCode = statusCode ?? subStatusCode;
 
-          return {message, scheme, data};
-        });
+      return {message, data};
+    });
 
     return new HttpError(`Not authorized`, statusCode ?? 401, {errors});
   }

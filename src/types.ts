@@ -113,9 +113,11 @@ export type Interceptor<T> = Handler<T, RequestParams<T>, void>;
  * The context always present in all routed requests
  */
 export type OperationParams<T = unknown> = RequestParams<T> & {
-  //apiContext: ApiContext;
   operation: OpenAPIV3.OperationObject;
-  security: Record<string, unknown>;
+  definition: OpenAPIV3.Document;
+  security: {
+    results: Record<string, unknown>;
+  };
 };
 
 /**
@@ -125,13 +127,13 @@ export type OperationParams<T = unknown> = RequestParams<T> & {
  * If res.statusCode is not set when this function returns and a single 2xx status code exists in the response schema,
  * it will be used. Otherwise, not setting any status code will cause a 500 error.
  *
- * @template P          Type of context
+ * @template T          Type of data
  * @template Req        Type of request
  * @template Res        Type of response
  *
  * @param req           Request
  * @param res           Response
- * @param context       Context
+ * @param params        Operation params
  * @async
  * @returns Response body or nothing
  */
@@ -142,6 +144,13 @@ export type OperationHandler<T,
         res: Res,
         params: OperationParams<T>) => Awaitable<Res['body'] | void>;
 
+export type SecurityRequirement = {
+  name: string;
+  scheme: OpenAPIV3.SecuritySchemeObject;
+  parameters: {
+    scopes?: string[];
+  };
+};
 /**
  * A handler implementing a security scheme.
  *
@@ -152,7 +161,7 @@ export type OperationHandler<T,
  * Example: If an authorized is registered for the security scheme "ApiKey", the value returned
  * from the authorizer will be stored in context.security['ApiKey'].
  *
- * @template P  Type of params
+ * @template T  Type of data
  * @template R  Type of produced result for this security scheme, e.g. a session, user object or similar
  *
  * @param req       Request
@@ -161,7 +170,13 @@ export type OperationHandler<T,
  * @async
  * @returns Security scheme result
  */
-export type Authorizer<T, R = unknown> = Handler<T, OperationParams<T>, R>;
+//export type Authorizer<T, R = unknown> = Handler<T, OperationParams<T>, R>;
+export type Authorizer<T, R = unknown> = (
+    req: Request,
+    res: Response,
+    params: OperationParams<T>,
+    requirement: SecurityRequirement
+) => Awaitable<R>;
 
 /**
  * @template P Type of params
