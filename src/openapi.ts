@@ -9,7 +9,7 @@ import {
   Interceptor,
   OperationHandler,
   Params,
-  RawParams,
+  StringParams,
   RawRequest,
   RawResponse,
   RegistrationParams,
@@ -184,15 +184,15 @@ export class OpenApi<S, C> {
     return api;
   }
 
-  private parseParams(rawParams: RawParams, operation: OpenAPI.Operation, type: ParameterType): Params {
-    const {result, errors} = matchSchema<RawParams, Params>(rawParams, getParametersSchema(operation, type));
+  private parseParams(rawParams: StringParams, operation: OpenAPI.Operation, type: ParameterType): Params {
+    const {result, errors} = matchSchema<StringParams, Params>(rawParams, getParametersSchema(operation, type));
 
     this.handleValidationErrors(errors, `Request ${type} params don't match schema`, 'throw');
 
     return result;
   }
 
-  private createRequest(apiContext: OpenAPI.Context): Request {
+  protected parseRequest(apiContext: OpenAPI.Context): Request {
     const {request: {method, path, params, headers, query, body}, operation} = apiContext;
 
     return {
@@ -205,13 +205,27 @@ export class OpenApi<S, C> {
     };
   }
 
+  protected formatResponse(res: Response): RawResponse {
+    const {statusCode = 500, headers, body} = res;
+
+    return {
+      statusCode,
+      headers: mapObject(headers, oneOrMany(String)),
+      body,
+    };
+  }
+
   private createHandler(
       operationHandler: OperationHandler<RequestParams<S, C>>,
       operationId: string,
   ): OpenApiHandler<RequestParams<S, C>, void> {
     return async (apiContext, data) => {
+      // Parse the request the first time (TODO currently this handler is not re-used)
+      data.req = data.req ?? this.parseRequest(apiContext);
+
       const {operation} = apiContext;
-      const {req = this.createRequest(apiContext), res, params} = data;
+      const {req , res, params} = data;
+
       this.logger.info(`Calling operation ${operationId}`);
 
       // Note: The handler function may modify the "res" object and/or return a response body.
@@ -219,18 +233,8 @@ export class OpenApi<S, C> {
       const resBody = await operationHandler(req, res, {apiContext, ...params});
       res.body = res.body ?? resBody;
       res.statusCode = res.statusCode ?? getDefaultStatusCode(operation);
-      // TODO Response class with methods?
-      // res.setStatusCode(200).setBody({foo: 42}).addHeaders({bar:42})
 
-      // const {statusCode = getDefaultStatusCode(operation), headers, body} = res;
-      //
-      // Object.assign(res, {
-      //   statusCode,
-      //   headers: mapObject(headers, oneOrMany(String)),
-      //   body,
-      // });
-
-      this.validateResponse(res, operation, apiContext);
+      this.validateResponse(apiContext, res);
     };
   }
 
@@ -245,7 +249,7 @@ export class OpenApi<S, C> {
     };
   }
 
-  protected validateResponse(response: Response, operation: OpenAPI.Operation, {api}: OpenAPI.Context) {
+  protected validateResponse({api, operation}: OpenAPI.Context, response: Response) {
     const {statusCode, headers, body} = response;
 
     // TODO Implement custom validation here instead.
@@ -400,20 +404,14 @@ export class OpenApi<S, C> {
     try {
       await this.routeAsync(req, res, params);
     } catch (err) {
-      this.logger.warn(`Error: ${req.path}: "${err.name}: ${err.message}"`);
+      this.logger.warn(`Error: ${id}: "${err.name}: ${err.message}"`);
 
       await this.errorHandlerAsync(req, res, params, err);
-      res.statusCode = res.statusCode ?? 500;
     }
 
+    res.statusCode = res.statusCode ?? 500;
     this.logger.info(`<-${id}: ${res.statusCode}`);
 
-    const {statusCode = 500, headers, body} = res;
-
-    return {
-      statusCode,
-      headers: mapObject(headers, oneOrMany(String)),
-      body,
-    };
+    return this.formatResponse(res);
   }
 }

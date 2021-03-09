@@ -4,14 +4,19 @@ import {OneOrMany} from './utils';
 
 export type ApiContext = OpenAPI.Context;
 
-export type Params<K extends string = string, V = string | number | boolean | undefined> = Record<K, OneOrMany<V>>;
-export type RawParams = Params<string, string>;
+export type Params<K extends string = string, V = OneOrMany<string | number | boolean | undefined>> = Record<K, V>;
+export type StringParams = Params<string, OneOrMany<string>>;
 
 /**
  * Request
- * @template B Type of request body
+ * @template Body Type of request body
+ * @template PathParams Type of request path parameters
+ * @template Query Type of request query
+ * @template Headers Type of request headers
+ *
  * @property method HTTP method
  * @property path Path
+ * @property params Path params
  * @property headers Headers
  * @property body Body content parsed from JSON
  * @property query Query string or parsed query object
@@ -29,23 +34,11 @@ export interface Request<Body = unknown,
   body: Body;
 }
 
-export type RawRequest = {
-  method: string;
-  path: string;
-  headers: RawParams;
-  query?: RawParams;
-  body?: unknown;
-};
-
-export type RawResponse = {
-  statusCode: number;
-  headers: RawParams;
-  body?: unknown
-};
-
 /**
  * Response - this is an output parameter for a handler function to fill in
- * @template B Type of response body
+ * @template Body Type of response body
+ * @template Headers Type of response headers
+ *
  * @property statusCode HTTP status code
  * @property body Body content which will be sent as JSON
  * @property headers Headers
@@ -55,6 +48,24 @@ export interface Response<Body = unknown, Headers extends Params = Params> {
   headers: Partial<Headers>;
   body?: Body;
 }
+
+// TODO Response class with methods?
+// res.complete(201, {body, headers: {'x-foo': 42}})
+
+
+export type RawRequest = {
+  method: string;
+  path: string;
+  query?: StringParams;
+  headers: StringParams;
+  body?: unknown;
+};
+
+export type RawResponse = {
+  statusCode: number;
+  headers: StringParams;
+  body?: unknown
+};
 
 /**
  * @template T Type of value or promised value
