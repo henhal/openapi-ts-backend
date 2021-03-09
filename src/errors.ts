@@ -47,7 +47,7 @@ export class HttpError<Data extends Record<string, any> = any> extends Error {
   }
 }
 
-function toHttpError(err: Error, {logger}: OpenApi<unknown, unknown>): HttpError {
+function toHttpError(err: Error, {logger}: OpenApi<unknown>): HttpError {
   if (err instanceof BadRequestError) {
     const errors = err.context.validation.errors ?? [];
 
@@ -93,7 +93,7 @@ function toHttpError(err: Error, {logger}: OpenApi<unknown, unknown>): HttpError
   return new HttpError(`Internal error`, 500);
 }
 
-export const defaultErrorHandler: ErrorHandler = (req, res, params, err) => {
+export const defaultErrorHandler: ErrorHandler<any> = (req, res, params, err) => {
   const {statusCode = 500, message = 'Unknown error', data} = toHttpError(err, params.api);
 
   Object.assign(res, {statusCode, body: {message, data}});

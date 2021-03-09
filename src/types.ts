@@ -2,6 +2,7 @@ import * as OpenAPI from "openapi-backend";
 
 import {OneOrMany} from './utils';
 import {OpenApi} from './openapi';
+import {OpenAPIV3} from 'openapi-types';
 
 export type ApiContext = OpenAPI.Context;
 
@@ -72,10 +73,9 @@ export type RawResponse = {
  */
 export type Awaitable<T> = T | Promise<T>;
 
-export interface RequestParams<Source = unknown, Context = unknown> {
-  source: Source;
-  context: Context;
-  api: OpenApi<Source, Context>;
+export interface RequestParams<T = unknown> {
+  readonly api: OpenApi<T>;
+  readonly data: T;
 }
 
 /**
@@ -91,29 +91,31 @@ export interface RequestParams<Source = unknown, Context = unknown> {
  * @param err       Error thrown by the handler or router
  * @async
  */
-export type ErrorHandler<P extends RequestParams = RequestParams> = (
+export type ErrorHandler<T = unknown> = (
     req: RawRequest,
     res: Response,
-    params: P,
+    params: RequestParams<T>,
     err: Error,
 ) => Awaitable<void>
 
-type Handler<P extends RequestParams, T> = (
+type Handler<T, P extends RequestParams<T>, R> = (
     req: RawRequest,
     res: Response,
     params: P
-) => Awaitable<T>;
+) => Awaitable<R>;
 
 /**
  * An interceptor invoked for every request before routing it.
  */
-export type Interceptor<P extends RequestParams> = Handler<P, void>;
+export type Interceptor<T> = Handler<T, RequestParams<T>, void>;
 
 /**
  * The context always present in all routed requests
  */
-export type OperationParams<P extends RequestParams> = P & {
-  apiContext: ApiContext;
+export type OperationParams<T = unknown> = RequestParams<T> & {
+  //apiContext: ApiContext;
+  operation: OpenAPIV3.OperationObject;
+  security: Record<string, unknown>;
 };
 
 /**
@@ -133,12 +135,12 @@ export type OperationParams<P extends RequestParams> = P & {
  * @async
  * @returns Response body or nothing
  */
-export type OperationHandler<P extends RequestParams,
+export type OperationHandler<T,
     Req extends Request = Request,
     Res extends Response = Response> = (
         req: Req,
         res: Res,
-        params: OperationParams<P>) => Awaitable<Res['body'] | void>;
+        params: OperationParams<T>) => Awaitable<Res['body'] | void>;
 
 /**
  * A handler implementing a security scheme.
@@ -159,7 +161,7 @@ export type OperationHandler<P extends RequestParams,
  * @async
  * @returns Security scheme result
  */
-export type Authorizer<P extends RequestParams, R = unknown> = Handler<OperationParams<P>, R>;
+export type Authorizer<T, R = unknown> = Handler<T, OperationParams<T>, R>;
 
 /**
  * @template P Type of params
@@ -169,10 +171,10 @@ export type Authorizer<P extends RequestParams, R = unknown> = Handler<Operation
  * @property [authorizers]  Map of securityScheme names in the definition to Authorizer functions
  * @property [path = '/']   API path prefix for this API
  */
-export type RegistrationParams<P extends RequestParams> = {
+export type RegistrationParams<T> = {
   definition: OpenAPI.Document | string;
-  operations: Record<string, OperationHandler<P>>;
-  authorizers?: Record<string, Authorizer<P>>;
+  operations: Record<string, OperationHandler<T>>;
+  authorizers?: Record<string, Authorizer<T>>;
   path?: string;
 };
 

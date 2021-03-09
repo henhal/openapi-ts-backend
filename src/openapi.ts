@@ -9,13 +9,13 @@ import {
   Interceptor,
   OperationHandler,
   Params,
-  StringParams,
   RawRequest,
   RawResponse,
   RegistrationParams,
   Request,
   RequestParams,
   Response,
+  StringParams,
 } from './types';
 import Operation from "./operation";
 import {
@@ -27,22 +27,20 @@ import {
   matchSchema,
   oneOrMany,
   ParameterType,
-  Resolvable,
-  resolve,
 } from './utils';
 import {createLogger, getLogLevels, Logger} from './logger';
 
 type FailStrategy = 'warn' | 'throw';
 type ResponseTrimming = 'none' | 'failing' | 'all';
 
-type HandlerData<P extends RequestParams> = {
+type HandlerData<P> = {
   req?: Request; // Assigned lazily
   res: Response;
-  params: P;
+  params: RequestParams<P>;
 };
 
 // Note: Implementation of OpenAPI.Handler - these arguments match the call to api.handleRequest
-type OpenApiHandler<P extends RequestParams, T> = (apiContext: OpenAPI.Context, data: HandlerData<P>) => Awaitable<T>;
+type OpenApiHandler<P, R> = (apiContext: OpenAPI.Context, data: HandlerData<P>) => Awaitable<R>;
 
 export type ApiOptions = Pick<OpenAPI.Options, 'ajvOpts' | 'customizeAjv'>;
 
@@ -87,45 +85,28 @@ function getDefaultStatusCode({responses = {}}: OpenAPI.Operation): number {
   return codes[0];
 }
 
-// TODO
-class RequestImpl<Body = any,
-    PathParams extends Params = Params,
-    Query extends Params = Params,
-    Headers extends Params = Params> implements Request<Body, PathParams, Query, Headers> {
-  readonly method: string;
-  readonly path: string;
-  readonly params: PathParams;
-  readonly query: Query;
-  readonly headers: Headers;
-  readonly body: Body;
-  readonly operation: Operation;
-  private readonly apiContext: OpenAPI.Context;
-
-  constructor(req: Request<Body, PathParams, Query, Headers>, op: Operation, apiContext: OpenAPI.Context) {
-    this.method = req.method;
-    this.path = req.path;
-    this.params = req.params;
-    this.headers = req.headers;
-    this.query = req.query;
-    this.body = req.body;
-    this.operation = op;
-    this.apiContext = apiContext;
-  }
-}
+type SecurityRequirement<R> = {
+  name: string;
+  scheme: any;
+  parameters: {
+    scopes?: string[];
+  };
+  result?: R;
+  error?: Error;
+};
 
 /**
  * A HTTP API using an OpenAPI definition.
  * This uses the openapi-backend module to parse, route and validate requests created from events.
  *
- * @template Context     Type of context passed to each request
+ * @template T     Type of custom data passed to each request's params
  *
  */
-export class OpenApi<S, C> {
+export class OpenApi<T> {
   private readonly apiOptions: Partial<OpenAPI.Options>;
-  private interceptors: Interceptor<RequestParams<S, C>>[] = [];
+  private interceptors: Interceptor<T>[] = [];
   private apiPromises: Promise<OpenAPI.OpenAPIBackend>[] = [];
-  private readonly errorHandlerAsync: ErrorHandler<RequestParams<S, C>>;
-  private resolvableContext?: Resolvable<Awaitable<C>>;
+  private readonly errorHandlerAsync: ErrorHandler<T>;
   readonly logger: Logger;
   readonly invalidResponseStrategy: FailStrategy;
   readonly responseTrimming: ResponseTrimming;
@@ -142,14 +123,12 @@ export class OpenApi<S, C> {
         apiOptions,
         errorHandlerAsync = Errors.defaultErrorHandler,
         logger = consoleLogger,
-        resolvableContext,
         invalidResponseStrategy = 'warn',
         responseTrimming = 'failing'
       }: {
         apiOptions?: ApiOptions;
-        errorHandlerAsync?: ErrorHandler<RequestParams<S, C>>;
+        errorHandlerAsync?: ErrorHandler<T>;
         logger?: Logger | null;
-        resolvableContext?: Resolvable<Awaitable<C>>;
         invalidResponseStrategy?: FailStrategy;
         responseTrimming?: ResponseTrimming;
       } = {}) {
@@ -159,19 +138,8 @@ export class OpenApi<S, C> {
     };
     this.errorHandlerAsync = errorHandlerAsync;
     this.logger = logger || noLogger;
-    this.resolvableContext = resolvableContext;
     this.invalidResponseStrategy = invalidResponseStrategy;
     this.responseTrimming = responseTrimming;
-  }
-
-  private async getContextAsync(): Promise<C> {
-    const {resolvableContext} = this;
-
-    if (resolvableContext === undefined) {
-      return undefined as any;
-    }
-
-    return resolve<Awaitable<C>>(resolvableContext);
   }
 
   private getApisAsync(): Promise<Array<OpenAPI.OpenAPIBackend>> {
@@ -179,8 +147,8 @@ export class OpenApi<S, C> {
   }
 
   private async createApiAsync(apiOptions: OpenAPI.Options,
-                               operations: Record<string, OperationHandler<RequestParams<S, C>>>,
-                               authorizers: Record<string, Authorizer<RequestParams<S, C>>> = {}) {
+                               operations: Record<string, OperationHandler<T>>,
+                               authorizers: Record<string, Authorizer<T>> = {}) {
     const api = await new OpenAPI.OpenAPIBackend(apiOptions).init();
 
     for (const [id, handler] of Object.entries(operations)) {
@@ -226,21 +194,24 @@ export class OpenApi<S, C> {
   }
 
   private createHandler(
-      operationHandler: OperationHandler<RequestParams<S, C>>,
+      operationHandler: OperationHandler<T>,
       operationId: string,
-  ): OpenApiHandler<RequestParams<S, C>, void> {
+  ): OpenApiHandler<T, void> {
     return async (apiContext, data) => {
-      // Parse the request the first time (TODO currently this handler is not re-used)
+      // Parse the request the first time
+      // TODO currently this handler is not re-used so caching it in data makes no difference really
       data.req = data.req ?? this.parseRequest(apiContext);
 
-      const {operation} = apiContext;
-      const {req , res, params} = data;
+      const {operation, security} = apiContext;
+      const {req, res, params} = data;
+
+      const requirements: SecurityRequirement<any>[] =
 
       this.logger.info(`Calling operation ${operationId}`);
 
       // Note: The handler function may modify the "res" object and/or return a response body.
       // If "res.body" is undefined we use the return value as the body.
-      const resBody = await operationHandler(req, res, {apiContext, ...params});
+      const resBody = await operationHandler(req, res, {operation, security, ...params});
       res.body = res.body ?? resBody;
 
       // If status code is not specified and a non-ambiguous default status code is available, use it
@@ -250,14 +221,16 @@ export class OpenApi<S, C> {
     };
   }
 
-  private createSecurityHandler<T>(
-      authorizer: Authorizer<RequestParams<S, C>, T>,
+  private createSecurityHandler<R>(
+      authorizer: Authorizer<T, R>,
       name: string,
-  ): OpenApiHandler<RequestParams<S, C>, T> {
+  ): OpenApiHandler<T, R> {
     return async (apiContext, {res, params}) => {
+      const {operation, security} = apiContext;
+
       this.logger.info(`Calling authorizer ${name}`);
 
-      return authorizer(apiContext.request, res, {apiContext, ...params});
+      return authorizer(apiContext.request, res, {operation, security, ...params});
     };
   }
 
@@ -304,7 +277,7 @@ export class OpenApi<S, C> {
    * @param interceptors Interceptor functions
    * @return This instance, for chaining of calls
    */
-  intercept(...interceptors: Interceptor<RequestParams<S, C>>[]): this {
+  intercept(...interceptors: Interceptor<T>[]): this {
     this.interceptors.push(...interceptors);
 
     return this;
@@ -316,7 +289,7 @@ export class OpenApi<S, C> {
    * @param params Parameters
    * @return This instance, for chaining of calls
    */
-  register({definition, operations, authorizers, path}: RegistrationParams<RequestParams<S, C>>): this {
+  register({definition, operations, authorizers, path}: RegistrationParams<T>): this {
     this.apiPromises.push(this.createApiAsync({
       ...this.apiOptions,
       definition,
@@ -362,7 +335,7 @@ export class OpenApi<S, C> {
   protected async routeAsync(
       req: RawRequest,
       res: Response,
-      params: RequestParams<S, C>,
+      params: RequestParams<T>,
   ): Promise<void> {
     if (!isRawRequest(req)) {
       throw new Error(`Invalid HTTP request`);
@@ -404,12 +377,11 @@ export class OpenApi<S, C> {
    * If an error was thrown, the error handler function is invoked to convert it to a response.
    *
    * @param req Request
-   * @param source Request source
+   * @param data Custom data
    * @returns Response
    */
-  async handleAsync(req: RawRequest, source: S): Promise<RawResponse> {
-    const context = await this.getContextAsync();
-    const params: RequestParams<S, C> = {source, context, api: this};
+  async handleAsync(req: RawRequest, ...[data]: T[]): Promise<RawResponse> {
+    const params: RequestParams<T> = {api: this, data};
     const id = `${req.method?.toUpperCase()} ${req.path}`;
     this.logger.info(`->${id}`);
 

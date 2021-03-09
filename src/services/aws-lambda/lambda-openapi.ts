@@ -1,7 +1,7 @@
 import * as Lambda from 'aws-lambda';
 
 import {OpenApi} from '../../openapi';
-import {OperationHandler, RawRequest, RawResponse, Request, RequestParams, Response} from '../../types';
+import {OperationParams, RawRequest, RawResponse, RequestParams} from '../../types';
 
 function parseJson(body: string | null): any {
   // Try to parse the body as JSON. If it's malformed, we return the raw string as the body to get a useful
@@ -30,19 +30,14 @@ export type LambdaSource = {
   };
 };
 
-export type LambdaRequestParams<C = unknown> = RequestParams<LambdaSource, C>;
+export type LambdaOperationParams<T = any> = OperationParams<LambdaSource & T>;
 
-/**
- * AWS Lambda operation handler
- */
-export type LambdaOperationHandler<P extends LambdaRequestParams = LambdaRequestParams,
-    Req extends Request = Request,
-    Res extends Response = Response> = OperationHandler<P, Req, Res>;
+export type LambdaRequestParams<T = any> = RequestParams<LambdaSource & T>;
 
 /**
  * A HTTP API using an OpenAPI definition and implemented using AWS Lambda.
  */
-export class LambdaOpenApi<C> extends OpenApi<LambdaSource, C> {
+export class LambdaOpenApi<T> extends OpenApi<LambdaSource & T> {
   protected fromLambdaEvent(event: Lambda.APIGatewayEvent): RawRequest {
     return {
       method: event.httpMethod,
@@ -85,11 +80,18 @@ export class LambdaOpenApi<C> extends OpenApi<LambdaSource, C> {
    * and transform the response into a lambda HTTP event response.
    * The request and response body will be converted from/to JSON.
    *
+   * @param args  If T is an object, an instance of T, otherwise no parameters
+   *
    * @return A lambda event handler function
    */
-  eventHandler(): Lambda.APIGatewayProxyHandler {
+  eventHandler(...[data]: T extends object ? T[] : []): Lambda.APIGatewayProxyHandler {
     return async (event: Lambda.APIGatewayEvent, context: Lambda.Context) => {
       this.logger.debug(`Lambda event:\n${JSON.stringify(event, null, 2)}`);
+
+      const foo = {
+        lambda: {event, context},
+        ...data
+      };
 
       const res = await this.handleAsync(
           this.fromLambdaEvent(event),
@@ -97,7 +99,8 @@ export class LambdaOpenApi<C> extends OpenApi<LambdaSource, C> {
             lambda: {
               event,
               context
-            }
+            },
+            ...data
           });
 
       return this.toLambdaResult(res);

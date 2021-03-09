@@ -1,10 +1,4 @@
-import {
-  ApiContext,
-  HttpError,
-  LambdaOpenApi,
-  LambdaRequestParams,
-  RawRequest,
-} from 'openapi-ts-backend';
+import {HttpError, LambdaOpenApi, LambdaOperationParams, LambdaSource, RawRequest} from 'openapi-ts-backend';
 
 import {Operations} from 'gen/example-api';
 
@@ -81,7 +75,7 @@ function verifyScopes(grantedScopes: string[], requiredScopes: string[]) {
   }
 }
 
-function authenticate(req: RawRequest, {operation}: ApiContext): AuthSession {
+function authorize<T>(req: RawRequest, {operation}: LambdaOperationParams<T>): AuthSession {
   const header = req.headers?.['authorization'];
 
   if (typeof header !== 'string') {
@@ -105,8 +99,11 @@ const definition = `${ROOT_PATH}/out/spec/example-api/api.yml`;
 
 console.debug(`Using OpenAPI document ${definition}`);
 
-const operations: Operations<LambdaRequestParams<Context>> = {
+type CustomParams = unknown;
+
+const operations: Operations<LambdaSource & CustomParams> = {
   greet: (req, res, params) => {
+    console.log(params);
     const {person} = req.body;
     const hhh = req.headers;
     const aaa = req.headers.abc;
@@ -136,16 +133,16 @@ const operations: Operations<LambdaRequestParams<Context>> = {
   },
 };
 
-export default new LambdaOpenApi({resolvableContext: createContextAsync()})
+export default new LambdaOpenApi<CustomParams>()
     .intercept(((req, res, params) => {
-      //console.log(`Event:`, params.source.lambda.event);
+      console.log(`Event:`, params.data.lambda.event);
     }))
     .register({
       definition,
       authorizers: {
         AccessToken: (req, res, params) => {
           //console.debug(`AccessToken: res=${JSON.stringify(res)}`);
-          return authenticate(req, params.apiContext);
+          return authorize(req, params);
         }
       },
       operations,
