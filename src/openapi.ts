@@ -30,13 +30,13 @@ import {
   Resolvable,
   resolve,
 } from './utils';
-import {createLogger, Logger} from './logger';
+import {createLogger, getLogLevels, Logger} from './logger';
 
 type FailStrategy = 'warn' | 'throw';
 type ResponseTrimming = 'none' | 'failing' | 'all';
 
 type HandlerData<P extends RequestParams> = {
-  req?: Request;
+  req?: Request; // Assigned lazily
   res: Response;
   params: P;
 };
@@ -46,9 +46,13 @@ type OpenApiHandler<P extends RequestParams, T> = (apiContext: OpenAPI.Context, 
 
 export type ApiOptions = Pick<OpenAPI.Options, 'ajvOpts' | 'customizeAjv'>;
 
-const consoleLogger: Logger = createLogger(level => console[level].bind(null, `${level}:`));
-const noLogger: Logger = createLogger(level => () => {
-});
+const LOG_LEVELS = getLogLevels(process.env.LOG_LEVEL ?? 'info');
+
+const nop = () => {};
+const consoleLogger: Logger = createLogger(level => LOG_LEVELS.includes(level) ?
+    console[level].bind(null, `${level}:`) :
+    nop);
+const noLogger: Logger = createLogger(level => nop);
 
 const defaultHandlers: Partial<OpenAPI.Options['handlers']> = Object.freeze({
   validationFail(apiContext) {
@@ -64,6 +68,12 @@ const defaultHandlers: Partial<OpenAPI.Options['handlers']> = Object.freeze({
     throw new Errors.UnauthorizedError(apiContext);
   },
 });
+
+function isRawRequest(req: any): req is RawRequest {
+  return typeof req.method === 'string' &&
+      typeof req.path === 'string' &&
+      req.headers && typeof req.headers === 'object';
+}
 
 function getDefaultStatusCode({responses = {}}: OpenAPI.Operation): number {
   // If statusCode is not set and there is exactly one successful response, we use it automatically.
@@ -354,6 +364,9 @@ export class OpenApi<S, C> {
       res: Response,
       params: RequestParams<S, C>,
   ): Promise<void> {
+    if (!isRawRequest(req)) {
+      throw new Error(`Invalid HTTP request`);
+    }
     const apis = await this.getApisAsync();
 
     if (!apis.length) {
@@ -372,7 +385,6 @@ export class OpenApi<S, C> {
       try {
         this.logger.debug(`Attempting to route ${req.path} to ${api.apiRoot}`);
 
-        this.logger.info(`Calling api.handleRequest with ${JSON.stringify(res)}`);
         return await api.handleRequest(req, {res, params});
       } catch (e) {
         if (e instanceof Errors.NotFoundError) {
@@ -397,8 +409,8 @@ export class OpenApi<S, C> {
    */
   async handleAsync(req: RawRequest, source: S): Promise<RawResponse> {
     const context = await this.getContextAsync();
-    const params: RequestParams<S, C> = {source, context};
-    const id = `${req.method.toUpperCase()} ${req.path}`;
+    const params: RequestParams<S, C> = {source, context, api: this};
+    const id = `${req.method?.toUpperCase()} ${req.path}`;
     this.logger.info(`->${id}`);
 
     const res: Response = {headers: {}};

@@ -138,7 +138,7 @@ const operations: Operations<LambdaRequestParams<Context>> = {
 
 export default new LambdaOpenApi({resolvableContext: createContextAsync()})
     .intercept(((req, res, params) => {
-      console.log(`Event:`, params.source.event);
+      //console.log(`Event:`, params.source.lambda.event);
     }))
     .register({
       definition,

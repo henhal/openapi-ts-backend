@@ -1,6 +1,7 @@
 import * as OpenAPI from "openapi-backend";
 
 import {OneOrMany} from './utils';
+import {OpenApi} from './openapi';
 
 export type ApiContext = OpenAPI.Context;
 
@@ -71,10 +72,10 @@ export type RawResponse = {
  */
 export type Awaitable<T> = T | Promise<T>;
 
-export interface RequestParams<S = unknown, C = unknown> {
-  source: S;
-  context: C;
-  // TODO api: OpenApi ?
+export interface RequestParams<Source = unknown, Context = unknown> {
+  source: Source;
+  context: Context;
+  api: OpenApi<Source, Context>;
 }
 
 /**
@@ -111,9 +112,9 @@ export type Interceptor<P extends RequestParams> = Handler<P, void>;
 /**
  * The context always present in all routed requests
  */
-export interface OperationParams {
+export type OperationParams<P extends RequestParams> = P & {
   apiContext: ApiContext;
-}
+};
 
 /**
  * A handler implementing a single API operation
@@ -137,7 +138,7 @@ export type OperationHandler<P extends RequestParams,
     Res extends Response = Response> = (
         req: Req,
         res: Res,
-        params: P & OperationParams) => Awaitable<Res['body'] | void>;
+        params: OperationParams<P>) => Awaitable<Res['body'] | void>;
 
 /**
  * A handler implementing a security scheme.
@@ -158,7 +159,7 @@ export type OperationHandler<P extends RequestParams,
  * @async
  * @returns Security scheme result
  */
-export type Authorizer<P extends RequestParams, R = unknown> = Handler<P & OperationParams, R>;
+export type Authorizer<P extends RequestParams, R = unknown> = Handler<OperationParams<P>, R>;
 
 /**
  * @template P Type of params

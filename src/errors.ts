@@ -2,6 +2,7 @@ import * as OpenAPI from "openapi-backend";
 
 import {ErrorHandler} from "./types";
 import {formatArray, formatValidationError} from './utils';
+import {OpenApi} from './openapi';
 
 function formatOperationName(request: OpenAPI.ParsedRequest) {
   const {method, path} = request;
@@ -46,12 +47,9 @@ export class HttpError<Data extends Record<string, any> = any> extends Error {
   }
 }
 
-function toHttpError(err: Error): HttpError {
+function toHttpError(err: Error, {logger}: OpenApi<unknown, unknown>): HttpError {
   if (err instanceof BadRequestError) {
     const errors = err.context.validation.errors ?? [];
-
-    // TODO logger
-    console.warn(`Validation errors:`, errors);
 
     return new HttpError(`Invalid request`, 400, {
       errors: errors.map(({dataPath, message, keyword, params}) => ({
@@ -90,13 +88,13 @@ function toHttpError(err: Error): HttpError {
     return err as HttpError;
   }
 
-  console.error(`Unhandled internal error: `, err);
+  logger.error(`Unhandled internal error: `, err);
 
   return new HttpError(`Internal error`, 500);
 }
 
-export const defaultErrorHandler: ErrorHandler = (req, res, context, err) => {
-  const {statusCode = 500, message = 'Unknown error', data} = toHttpError(err);
+export const defaultErrorHandler: ErrorHandler = (req, res, params, err) => {
+  const {statusCode = 500, message = 'Unknown error', data} = toHttpError(err, params.api);
 
   Object.assign(res, {statusCode, body: {message, data}});
 };
