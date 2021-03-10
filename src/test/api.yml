@@ -128,3 +128,34 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Greeting'
+  '/types/{foo}':
+    get:
+      operationId: getTypes
+      summary: Get types of params
+      tags:
+        - Example
+      parameters:
+        - in: path
+          name: foo
+          schema:
+            type: number
+        - in: query
+          name: bar
+          schema:
+            type: number
+        - in: header
+          name: baz
+          schema:
+            type: number
+        - in: cookie
+          name: qux
+          schema:
+            type: number
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+
