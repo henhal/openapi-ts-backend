@@ -1,5 +1,6 @@
-import {ErrorObject} from 'ajv';
+import Ajv, {ErrorObject} from 'ajv';
 import * as OpenAPI from 'openapi-backend';
+import {ValidationContext} from 'openapi-backend';
 
 import * as Errors from './errors';
 import {
@@ -8,7 +9,8 @@ import {
   Awaitable,
   ErrorHandler,
   Interceptor,
-  OperationHandler, OperationParams,
+  OperationHandler,
+  OperationParams,
   Params,
   RawRequest,
   RawResponse,
@@ -22,6 +24,7 @@ import Operation from "./operation";
 import {
   formatArray,
   formatValidationError,
+  getParameterMap,
   getParametersSchema,
   inRange,
   mapObject,
@@ -146,25 +149,30 @@ export class OpenApi<T> {
     return api;
   }
 
-  protected parseParams(rawParams: StringParams, operation: OpenAPI.Operation, type: ParameterType): Params {
-    const {result, errors} = matchSchema<StringParams, Params>(rawParams, getParametersSchema(operation, type));
-
-    this.handleValidationErrors(errors, `Request ${type} params don't match schema`, 'throw');
-
-    return result;
+  protected parseParams(rawParams: StringParams, operation: OpenAPI.Operation, type: ParameterType, errors: ErrorObject[]): Params {
+    // This is mostly used to coerce types, which openapi-backend does internally but then throws away
+    return matchSchema<StringParams, Params>(
+        rawParams,
+        getParametersSchema(getParameterMap(operation, type)),
+        errors);
   }
 
   protected parseRequest(apiContext: OpenAPI.Context): Request {
     const {request: {method, path, params, headers, query, body}, operation} = apiContext;
+    const errors: ErrorObject[] = [];
 
-    return {
+    const req = {
       method,
       path,
-      params: this.parseParams(params, operation, 'path'),
-      headers: this.parseParams(headers, operation, 'header'),
-      query: this.parseParams(query, operation, 'query'),
+      params: this.parseParams(params, operation, 'path', errors),
+      headers: this.parseParams(headers, operation, 'header', errors),
+      query: this.parseParams(query, operation, 'query', errors),
       body
     };
+
+    this.handleValidationErrors(errors, `Request doesn't match schema`, 'throw');
+
+    return req;
   }
 
   protected formatResponse(res: Response): RawResponse {
@@ -244,26 +252,70 @@ export class OpenApi<T> {
     };
   }
 
-  protected validateResponse({api, operation}: OpenAPI.Context, response: Response) {
-    const {statusCode, headers, body} = response;
+  protected validateResponse({api, operation}: OpenAPI.Context, res: Response) {
+    const {statusCode, headers, body} = res;
+    // const {responses} = operation;
+    //
+    // if (!responses || !statusCode) {
+    //   return;
+    // }
+    //
+    // const response = (responses[statusCode] ??
+    //     responses[`${Math.floor(statusCode / 100)}xx`] ??
+    //     responses['default']) as OpenAPIV3.ResponseObject | undefined;
+    //
+    // if (!response) {
+    //   return this.fail(`Response status code ${statusCode} not specified for operation`,
+    //       this.invalidResponseStrategy);
+    // }
+    //
+    const errors: ErrorObject[] = [];
+    //
+    // const bodySchema = response.content?.['application/json']?.schema as OpenAPIV3.SchemaObject | undefined;
+    //
+    // if (bodySchema) {
+    //   const validate = new Ajv({
+    //     removeAdditional: this.responseTrimming === 'none' ? false : this.responseTrimming
+    //   }).compile(bodySchema);
+    //
+    //   validate(body);
+    //
+    //   if (validate.errors) {
+    //     errors.push(...validate.errors);
+    //   }
+    // }
+    //
+    // const headersSchema = response.headers &&
+    //     getParametersSchema(response.headers as Record<string, OpenAPIV3.HeaderObject>);
+    //
+    // if (headersSchema) {
+    //   const validate = new Ajv().compile(headersSchema);
+    //
+    //   validate(headers);
+    //
+    //   if (validate.errors) {
+    //     errors.push(...validate.errors);
+    //   }
+    // }
+    //
 
-    // TODO Implement custom validation here instead.
-    // Option to control whether fail = throw or warn (default warn) -> failStrategy
-    // if statusCode is specified in response schema, validate body and headers, else fail
-    // Option to control trimming of body and headers using removeAdditional: 'all' (default 'failing') -> responseTrimming
+    const bodyErrors = api.validateResponse(body, operation).errors;
 
-    this.handleValidationErrors(
-        api.validateResponse(body, operation).errors,
-        `Response body doesn't match schema`,
-        this.invalidResponseStrategy);
+    if (bodyErrors) {
+      errors.push(...bodyErrors);
+    }
 
-    this.handleValidationErrors(
-        api.validateResponseHeaders(headers, operation, {
-          statusCode,
-          setMatchType: OpenAPI.SetMatchType.Superset,
-        }).errors,
-        `Response headers don't match schema`,
-        this.invalidResponseStrategy);
+    const headerErrors = api.validateResponseHeaders(headers, operation, {
+      statusCode,
+      setMatchType: OpenAPI.SetMatchType.Superset,
+    }).errors;
+
+    if (headerErrors) {
+      errors.push(...headerErrors);
+    }
+
+    this.handleValidationErrors(errors, `Response doesn't match schema`, this.invalidResponseStrategy);
+
   }
 
   protected handleValidationErrors(errors: ErrorObject[] | null | undefined, title: string, strategy: FailStrategy) {
@@ -305,6 +357,21 @@ export class OpenApi<T> {
       definition,
       apiRoot: path,
       validate: true,
+      customizeAjv: (originalAjv, ajvOpts, validationContext) => {
+        if (validationContext === ValidationContext.Response) {
+          // Remove additional properties on response body only
+          originalAjv._opts.removeAdditional = this.responseTrimming === 'none' ? false : this.responseTrimming;
+        }
+        // Invoke custom function as well if applicable
+        return this.apiOptions.customizeAjv ?
+            this.apiOptions.customizeAjv(originalAjv, ajvOpts, validationContext) :
+            originalAjv;
+      },
+      // ajvOpts: {
+      //   // This actually only affects response bodies
+      //   removeAdditional: this.responseTrimming === 'none' ? false : this.responseTrimming,
+      //   ...this.apiOptions.ajvOpts
+      // }
     }, operations, authorizers));
 
     return this;

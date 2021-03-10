@@ -105,7 +105,7 @@ type CustomParams = unknown;
 
 const operations: Operations<LambdaSource & CustomParams> = {
   greet: (req, res, params) => {
-    console.log(params);
+    console.log(req);
     const {person} = req.body;
     const hhh = req.headers;
     const aaa = req.headers.abc;
@@ -114,6 +114,8 @@ const operations: Operations<LambdaSource & CustomParams> = {
 
 
     res.headers.baz = 42;
+    res.headers.abc = 44;
+    res.headers.asjkajsktja='gll';
 
     if (!person.name.length) {
       throw new HttpError(`Don't be a stranger!`, 400);
@@ -121,6 +123,7 @@ const operations: Operations<LambdaSource & CustomParams> = {
 
     return {
       message: `Hello, ${person.name}!`,
+      qux: 42
     };
   },
   hello: async (req, res, params) => {

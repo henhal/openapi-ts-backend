@@ -6,8 +6,6 @@ export type OneOrMany<T> = T | Array<T>;
 // The "not a function restriction" solves TS2349 and enables using typeof === 'function' to determine if T is callable.
 export type Resolvable<T> = T extends Function ? never : T | (() => T);
 
-const matchingAjv = new Ajv({coerceTypes: 'array'});
-
 export function resolve<T>(resolvable: Resolvable<T>): T {
   return typeof resolvable === 'function' ? resolvable() : resolvable;
 }
@@ -24,35 +22,55 @@ export function formatArray<T>(items: T[], formatter: (item: T) => string, prefi
 
 export type ParameterType = 'header' | 'query' | 'path';
 
-export function getParametersSchema(
+export function getParameterMap(
     {parameters = []}: OpenAPIV3.OperationObject,
     type: ParameterType
-): OpenAPIV3.SchemaObject {
-  const result: OpenAPIV3.SchemaObject = {type: 'object', required: [], properties: {}, additionalProperties: true};
+): Record<string, OpenAPIV3.ParameterBaseObject> {
+  const result: Record<string, OpenAPIV3.ParameterBaseObject> = {};
 
   for (const parameter of parameters) {
     if ('in' in parameter && parameter.in === type) {
-      const {name, required = false, schema = {}} = parameter;
-
-      result.properties![name] = schema;
-
-      if (required) {
-        result.required!.push(name);
-      }
+      result[parameter.name] = parameter;
     }
   }
 
   return result;
 }
 
-export function matchSchema<T, U>(source: Readonly<T>, schema: OpenAPIV3.SchemaObject): {result: U, errors?: ErrorObject[]} {
+export function getParametersSchema(
+    parameters: Record<string, OpenAPIV3.ParameterBaseObject>
+): OpenAPIV3.SchemaObject {
+  const result: OpenAPIV3.SchemaObject = {type: 'object', required: [], properties: {}, additionalProperties: true};
+
+  for (const [name, parameter] of Object.entries(parameters)) {
+    const {required = false, schema = {}} = parameter;
+
+    result.properties![name] = schema;
+
+    if (required) {
+      result.required!.push(name);
+    }
+  }
+
+  return result;
+}
+
+// Note that errors is an out parameter
+export function matchSchema<T, U>(
+    source: Readonly<T>,
+    schema: OpenAPIV3.SchemaObject,
+    errors: ErrorObject[]): U {
   // Ajv mutates the passed object so we pass a copy
   const result = cloneObject(source);
-  const validate = matchingAjv.compile(schema);
+  const validate = new Ajv({coerceTypes: 'array'}).compile(schema);
 
   validate(result);
 
-  return {result, errors: validate.errors ?? undefined};
+  if (validate.errors) {
+    errors.push(...validate.errors);
+  }
+
+  return result;
 }
 
 function cloneObject<T>(source: Readonly<T>) {

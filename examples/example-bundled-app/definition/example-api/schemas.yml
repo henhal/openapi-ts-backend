@@ -1,11 +1,13 @@
 Person:
   type: object
   description: A person
+  additionalProperties: false
   required: [name]
   properties:
     name: {type: string}
-    age: {type: integer}
+    age: {type: integer, format: int32}
     gender: {type: string, enum: [MALE, FEMALE, UNSPECIFIED]}
+    data: {type: string, format: byte}
 Greet.Request:
   type: object
   required: [person]
@@ -15,7 +17,7 @@ Greet.Response:
   type: object
   required: [message]
   properties:
-    message: {type: string}
+    message: {type: string, format: byte}
   additionalProperties: false
 BarHeader:
   type: string
