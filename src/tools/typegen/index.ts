@@ -25,7 +25,7 @@ async function createSpecTypes(specPath: string, outputDir: string) {
   return write(outputDir, 'spec.ts', ts);
 }
 
-export default async function main(program: string, command: string, [inputFile, outputDir]: string[]) {
+export default async function main(program: string, command: string, [inputFile, outputDir]: string[]): Promise<void> {
   if (!inputFile || !outputDir) {
     throw new Error(`Usage: ${program} ${command} <path to OpenAPI document> <output directory>`);
   }

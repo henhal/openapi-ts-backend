@@ -6,7 +6,7 @@ export type Logger = Record<LogLevel, LogMethod>;
 
 const LOG_LEVELS: LogLevel[] = ['debug', 'info', 'warn', 'error'];
 
-export function getLogLevels(level: string) {
+export function getLogLevels(level: string): LogLevel[] {
   const pos = LOG_LEVELS.indexOf(level as LogLevel);
 
   return pos < 0 ? [] : LOG_LEVELS.filter((v, i) => i >= pos);

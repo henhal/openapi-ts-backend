@@ -4,6 +4,7 @@ import {OpenAPIV3} from 'openapi-types';
 export type OneOrMany<T> = T | Array<T>;
 
 // The "not a function restriction" solves TS2349 and enables using typeof === 'function' to determine if T is callable.
+// eslint-disable-next-line @typescript-eslint/ban-types
 export type Resolvable<T> = T extends Function ? never : T | (() => T);
 
 export function resolve<T>(resolvable: Resolvable<T>): T {
@@ -40,19 +41,24 @@ export function getParameterMap(
 export function getParametersSchema(
     parameters: Record<string, OpenAPIV3.ParameterBaseObject>
 ): OpenAPIV3.SchemaObject {
-  const result: OpenAPIV3.SchemaObject = {type: 'object', required: [], properties: {}, additionalProperties: true};
+  const result = {
+    type: 'object',
+    required: [] as string[],
+    properties: {} as Record<string, any>,
+    additionalProperties: true
+  };
 
   for (const [name, parameter] of Object.entries(parameters)) {
     const {required = false, schema = {}} = parameter;
 
-    result.properties![name] = schema;
+    result.properties[name] = schema;
 
     if (required) {
-      result.required!.push(name);
+      result.required.push(name);
     }
   }
 
-  return result;
+  return result as OpenAPIV3.SchemaObject;
 }
 
 // Note that errors is an out parameter
@@ -82,8 +88,11 @@ function cloneObject<T>(source: Readonly<T>) {
  * @param obj Source object
  * @param func Transform function
  */
-export function mapObject<K extends string, V, W>(obj: Record<K, V>, func: (value: V, key: K, obj: Record<K, V>) => W) {
-  return Object.fromEntries(Object.entries<V>(obj).map(([k, v]) => [k, func(v, k as K, obj)]));
+export function mapObject<K extends string, V, W>(
+    obj: Record<K, V>,
+    func: (value: V, key: K, obj: Record<K, V>) => W
+): Record<K, W> {
+  return Object.fromEntries(Object.entries<V>(obj).map(([k, v]) => [k, func(v, k as K, obj)])) as Record<K, W>;
 }
 
 export function transform<T, U>(value: OneOrMany<T>, func: (value: T) => U): OneOrMany<U> {

@@ -47,15 +47,16 @@ type OpenApiHandler<P, R> = (apiContext: OpenAPI.Context, data: HandlerData<P>) 
 
 const LOG_LEVELS = getLogLevels(process.env.LOG_LEVEL ?? 'info');
 
+// eslint-disable-next-line @typescript-eslint/no-empty-function
 const nop = () => {};
 const consoleLogger: Logger = createLogger(level => LOG_LEVELS.includes(level) ?
     console[level].bind(null, `${level}:`) :
     nop);
-const noLogger: Logger = createLogger(level => nop);
+const noLogger: Logger = createLogger(() => nop);
 
 const defaultHandlers: Partial<OpenAPI.Options['handlers']> = Object.freeze({
   validationFail(apiContext) {
-    throw new Errors.BadRequestError(apiContext.request, apiContext.validation.errors!);
+    throw new Errors.BadRequestError(apiContext.request, apiContext.validation.errors ?? []);
   },
   notFound(apiContext) {
     throw new Errors.NotFoundError(apiContext.request);
@@ -253,7 +254,7 @@ export class OpenApi<T> {
     };
   }
 
-  protected validateResponse({api, operation}: OpenAPI.Context, res: Response) {
+  protected validateResponse({api, operation}: OpenAPI.Context, res: Response): void {
     const {statusCode, headers, body} = res;
     const errors: Ajv.ErrorObject[] = [];
 
@@ -274,16 +275,18 @@ export class OpenApi<T> {
     }
 
     this.handleValidationErrors(errors, `Response doesn't match schema`, this.responseValidationStrategy);
-
   }
 
-  protected handleValidationErrors(errors: Ajv.ErrorObject[] | null | undefined, title: string, strategy: FailStrategy) {
+  protected handleValidationErrors(
+      errors: Ajv.ErrorObject[] | null | undefined,
+      title: string,
+      strategy: FailStrategy): void {
     if (errors?.length) {
       this.fail(`${title}: ${formatArray(errors, formatValidationError)}`, strategy);
     }
   }
 
-  protected fail(message: string, strategy: FailStrategy) {
+  protected fail(message: string, strategy: FailStrategy): void {
     if (strategy === 'throw') {
       throw new Error(message);
     }

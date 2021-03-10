@@ -2,7 +2,7 @@ import * as ts from 'typescript';
 
 console.log(`Using TypeScript v${ts.version}`);
 
-export function getApiOperationIds(specTypesPath: string) {
+export function getApiOperationIds(specTypesPath: string): string[] {
   const program = ts.createProgram([specTypesPath], {});
   const tsFile = program.getSourceFile(specTypesPath);
 
@@ -23,6 +23,6 @@ export function getApiOperationIds(specTypesPath: string) {
 
   const operationsInterface = operationsNode as ts.InterfaceDeclaration;
 
-  return operationsInterface.members.map(m => (m.name as ts.Identifier).escapedText);
+  return operationsInterface.members.map(m => (m.name as ts.Identifier).escapedText.toString());
 }
 

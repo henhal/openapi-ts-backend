@@ -1,5 +1,3 @@
-import * as OpenAPI from "openapi-backend";
-
 import {ErrorHandler, RawRequest} from "./types";
 import {formatArray, formatValidationError} from './utils';
 import {OpenApi} from './openapi';
