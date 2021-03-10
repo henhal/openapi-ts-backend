@@ -1,4 +1,4 @@
-import Ajv, {ErrorObject} from 'ajv';
+import {ErrorObject} from 'ajv';
 import * as OpenAPI from 'openapi-backend';
 import {ValidationContext} from 'openapi-backend';
 
@@ -20,7 +20,6 @@ import {
   Response,
   StringParams,
 } from './types';
-import Operation from "./operation";
 import {
   formatArray,
   formatValidationError,
@@ -111,7 +110,7 @@ export class OpenApi<T> {
    */
   constructor(
       {
-        apiOptions,
+        apiOptions = {},
         errorHandlerAsync = Errors.defaultErrorHandler,
         logger = consoleLogger,
         invalidResponseStrategy = 'warn',
@@ -126,6 +125,16 @@ export class OpenApi<T> {
     this.apiOptions = {
       handlers: {...defaultHandlers}, // must copy
       ...apiOptions,
+      customizeAjv: (ajv, ajvOpts, validationContext) => {
+        if (validationContext === ValidationContext.Response) {
+          // Remove additional properties on response body only
+          ajv._opts.removeAdditional = this.responseTrimming === 'none' ? false : this.responseTrimming;
+        }
+        // Invoke custom function as well if applicable
+        return apiOptions.customizeAjv ?
+            apiOptions.customizeAjv(ajv, ajvOpts, validationContext) :
+            ajv;
+      },
     };
     this.errorHandlerAsync = errorHandlerAsync;
     this.logger = logger || noLogger;
@@ -317,41 +326,11 @@ export class OpenApi<T> {
       ...this.apiOptions,
       definition,
       apiRoot: path,
-      validate: true,
-      customizeAjv: (originalAjv, ajvOpts, validationContext) => {
-        if (validationContext === ValidationContext.Response) {
-          // Remove additional properties on response body only
-          originalAjv._opts.removeAdditional = this.responseTrimming === 'none' ? false : this.responseTrimming;
-        }
-        // Invoke custom function as well if applicable
-        return this.apiOptions.customizeAjv ?
-            this.apiOptions.customizeAjv(originalAjv, ajvOpts, validationContext) :
-            originalAjv;
-      },
+      validate: true
     }, operations, authorizers));
 
     return this;
   }
-
-  /**
-   * Get the operation with the given ID
-   * @param operationId
-   * @returns Promised operation object
-   */
-  async getOperationAsync(operationId: string): Promise<Operation> {
-    const apis = await this.getApisAsync();
-
-    for (const api of apis) {
-      const operation = api.getOperation(operationId);
-
-      if (operation) {
-        return new Operation(api, operation);
-      }
-    }
-
-    throw new Error(`No registered operation ${operationId}`);
-  }
-
 
   /**
    * Handle the given request by validating and routing it using the registered API definitions.
