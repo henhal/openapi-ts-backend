@@ -82,7 +82,7 @@ export class OpenApi<T> {
   private interceptors: Interceptor<T>[] = [];
   private apiPromises: Promise<OpenAPI.OpenAPIBackend>[] = [];
 
-  readonly errorHandlerAsync: ErrorHandler<T>;
+  readonly errorHandler: ErrorHandler<T>;
   readonly logger: Logger;
   readonly responseValidationStrategy: FailStrategy;
   readonly responseBodyTrimming: ResponseTrimming;
@@ -92,35 +92,35 @@ export class OpenApi<T> {
    * Constructor
    * @param params Parameters
    * @param [params.apiOptions] Options passed to the OpenAPIBackend instance.
-   * @param [params.errorHandlerAsync] A function creating a response from an error thrown by the API.
+   * @param [params.errorHandler] A function creating a response from an error thrown by the API.
    * @param [params.logger] A logger, or null to suppress all logging
    */
   constructor(
       {
-        errorHandlerAsync = Errors.defaultErrorHandler,
+        errorHandler = Errors.defaultErrorHandler,
         logger = consoleLogger,
         responseValidationStrategy = 'warn',
         responseBodyTrimming = 'failing',
         ajvOptions
       }: {
-        errorHandlerAsync?: ErrorHandler<T>;
+        errorHandler?: ErrorHandler<T>;
         logger?: Logger | null;
         responseValidationStrategy?: FailStrategy;
         responseBodyTrimming?: ResponseTrimming;
         ajvOptions?: Ajv.Options;
       } = {}) {
-    this.errorHandlerAsync = errorHandlerAsync;
+    this.errorHandler = errorHandler;
     this.logger = logger || noLogger;
     this.responseValidationStrategy = responseValidationStrategy;
     this.responseBodyTrimming = responseBodyTrimming;
     this.ajvOptions = ajvOptions;
   }
 
-  private getApisAsync(): Promise<Array<OpenAPI.OpenAPIBackend>> {
+  private getApis(): Promise<Array<OpenAPI.OpenAPIBackend>> {
     return Promise.all(this.apiPromises);
   }
 
-  private async createApiAsync(apiOptions: OpenAPI.Options,
+  private async createApi(apiOptions: OpenAPI.Options,
                                operations: Record<string, OperationHandler<T>>,
                                authorizers: Record<string, Authorizer<T>> = {}) {
     const api = await new OpenAPI.OpenAPIBackend(apiOptions).init();
@@ -308,7 +308,7 @@ export class OpenApi<T> {
    * @return This instance, for chaining of calls
    */
   register({definition, operations, authorizers, path}: RegistrationParams<T>): this {
-    this.apiPromises.push(this.createApiAsync({
+    this.apiPromises.push(this.createApi({
       handlers: {...defaultHandlers}, // must copy
       definition,
       apiRoot: path,
@@ -339,7 +339,7 @@ export class OpenApi<T> {
    * @returns Empty promise if successful; rejected promise the request could not be routed
    *          or if the operation handler threw an error.
    */
-  protected async routeAsync(
+  protected async routeRequest(
       req: RawRequest,
       res: Response,
       params: RequestParams<T>,
@@ -347,7 +347,7 @@ export class OpenApi<T> {
     if (!isRawRequest(req)) {
       throw new Error(`Invalid HTTP request`);
     }
-    const apis = await this.getApisAsync();
+    const apis = await this.getApis();
 
     if (!apis.length) {
       throw new Error(`No APIs are registered`);
@@ -387,7 +387,7 @@ export class OpenApi<T> {
    * @param data Custom data
    * @returns Response
    */
-  async handleAsync(req: RawRequest, ...[data]: T[]): Promise<RawResponse> {
+  async handleRequest(req: RawRequest, ...[data]: T[]): Promise<RawResponse> {
     const params: RequestParams<T> = {api: this, data};
     const id = `${req.method?.toUpperCase()} ${req.path}`;
     this.logger.info(`->${id}`);
@@ -395,11 +395,11 @@ export class OpenApi<T> {
     const res: Response = {headers: {}};
 
     try {
-      await this.routeAsync(req, res, params);
+      await this.routeRequest(req, res, params);
     } catch (err) {
       this.logger.warn(`Error: ${id}: "${err.name}: ${err.message}"`);
 
-      await this.errorHandlerAsync(req, res, params, err);
+      await this.errorHandler(req, res, params, err);
     }
 
     res.statusCode = res.statusCode ?? 500;

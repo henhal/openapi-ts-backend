@@ -88,12 +88,7 @@ export class LambdaOpenApi<T> extends OpenApi<LambdaSource & T> {
     return async (event: Lambda.APIGatewayEvent, context: Lambda.Context) => {
       this.logger.debug(`Lambda event:\n${JSON.stringify(event, null, 2)}`);
 
-      const foo = {
-        lambda: {event, context},
-        ...data
-      };
-
-      const res = await this.handleAsync(
+      const res = await this.handleRequest(
           this.fromLambdaEvent(event),
           {
             lambda: {
