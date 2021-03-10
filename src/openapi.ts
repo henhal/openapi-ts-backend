@@ -1,4 +1,4 @@
-import {ErrorObject} from 'ajv';
+import * as Ajv from 'ajv';
 import * as OpenAPI from 'openapi-backend';
 import {ValidationContext} from 'openapi-backend';
 
@@ -45,8 +45,6 @@ type HandlerData<P> = {
 // Note: Implementation of OpenAPI.Handler - these arguments match the call to api.handleRequest
 type OpenApiHandler<P, R> = (apiContext: OpenAPI.Context, data: HandlerData<P>) => Awaitable<R>;
 
-export type ApiOptions = Pick<OpenAPI.Options, 'ajvOpts' | 'customizeAjv'>;
-
 const LOG_LEVELS = getLogLevels(process.env.LOG_LEVEL ?? 'info');
 
 const nop = () => {};
@@ -73,18 +71,6 @@ function isRawRequest(req: any): req is RawRequest {
       req.headers && typeof req.headers === 'object';
 }
 
-function getDefaultStatusCode({responses = {}}: OpenAPI.Operation): number {
-  // If statusCode is not set and there is exactly one successful response, we use it automatically.
-  const codes = Object.keys(responses || {}).map(Number).filter(inRange(200, 400));
-
-  if (codes.length !== 1) {
-    // No statusCode given and it's impossible to determine a default one from the response schemas
-    throw new Error(`Cannot determine implicit status code from API definition response codes ${
-        JSON.stringify(codes)}`);
-  }
-  return codes[0];
-}
-
 /**
  * A HTTP API using an OpenAPI definition.
  * This uses the openapi-backend module to parse, route and validate requests created from events.
@@ -93,13 +79,14 @@ function getDefaultStatusCode({responses = {}}: OpenAPI.Operation): number {
  *
  */
 export class OpenApi<T> {
-  private readonly apiOptions: Partial<OpenAPI.Options>;
   private interceptors: Interceptor<T>[] = [];
   private apiPromises: Promise<OpenAPI.OpenAPIBackend>[] = [];
-  private readonly errorHandlerAsync: ErrorHandler<T>;
+
+  readonly errorHandlerAsync: ErrorHandler<T>;
   readonly logger: Logger;
-  readonly invalidResponseStrategy: FailStrategy;
-  readonly responseTrimming: ResponseTrimming;
+  readonly responseValidationStrategy: FailStrategy;
+  readonly responseBodyTrimming: ResponseTrimming;
+  readonly ajvOptions?: Ajv.Options;
 
   /**
    * Constructor
@@ -110,36 +97,23 @@ export class OpenApi<T> {
    */
   constructor(
       {
-        apiOptions = {},
         errorHandlerAsync = Errors.defaultErrorHandler,
         logger = consoleLogger,
-        invalidResponseStrategy = 'warn',
-        responseTrimming = 'failing'
+        responseValidationStrategy = 'warn',
+        responseBodyTrimming = 'failing',
+        ajvOptions
       }: {
-        apiOptions?: ApiOptions;
         errorHandlerAsync?: ErrorHandler<T>;
         logger?: Logger | null;
-        invalidResponseStrategy?: FailStrategy;
-        responseTrimming?: ResponseTrimming;
+        responseValidationStrategy?: FailStrategy;
+        responseBodyTrimming?: ResponseTrimming;
+        ajvOptions?: Ajv.Options;
       } = {}) {
-    this.apiOptions = {
-      handlers: {...defaultHandlers}, // must copy
-      ...apiOptions,
-      customizeAjv: (ajv, ajvOpts, validationContext) => {
-        if (validationContext === ValidationContext.Response) {
-          // Remove additional properties on response body only
-          ajv._opts.removeAdditional = this.responseTrimming === 'none' ? false : this.responseTrimming;
-        }
-        // Invoke custom function as well if applicable
-        return apiOptions.customizeAjv ?
-            apiOptions.customizeAjv(ajv, ajvOpts, validationContext) :
-            ajv;
-      },
-    };
     this.errorHandlerAsync = errorHandlerAsync;
     this.logger = logger || noLogger;
-    this.invalidResponseStrategy = invalidResponseStrategy;
-    this.responseTrimming = responseTrimming;
+    this.responseValidationStrategy = responseValidationStrategy;
+    this.responseBodyTrimming = responseBodyTrimming;
+    this.ajvOptions = ajvOptions;
   }
 
   private getApisAsync(): Promise<Array<OpenAPI.OpenAPIBackend>> {
@@ -158,7 +132,7 @@ export class OpenApi<T> {
     return api;
   }
 
-  protected parseParams(rawParams: StringParams, operation: OpenAPI.Operation, type: ParameterType, errors: ErrorObject[]): Params {
+  protected parseParams(rawParams: StringParams, operation: OpenAPI.Operation, type: ParameterType, errors: Ajv.ErrorObject[]): Params {
     // This is mostly used to coerce types, which openapi-backend does internally but then throws away
     return matchSchema<StringParams, Params>(
         rawParams,
@@ -168,7 +142,7 @@ export class OpenApi<T> {
 
   protected parseRequest(apiContext: OpenAPI.Context): Request {
     const {request: {method, path, params, headers, query, body}, operation} = apiContext;
-    const errors: ErrorObject[] = [];
+    const errors: Ajv.ErrorObject[] = [];
 
     const req = {
       method,
@@ -238,7 +212,19 @@ export class OpenApi<T> {
     throw new Errors.UnauthorizedError(apiContext.request, errors);
   }
 
-  private createHandler(
+  protected getDefaultStatusCode({responses = {}}: OpenAPI.Operation): number {
+    // If statusCode is not set and there is exactly one successful response, we use it automatically.
+    const codes = Object.keys(responses || {}).map(Number).filter(inRange(200, 400));
+
+    if (codes.length !== 1) {
+      // No statusCode given and it's impossible to determine a default one from the response schemas
+      throw new Error(`Cannot determine implicit status code from API definition response codes ${
+          JSON.stringify(codes)}`);
+    }
+    return codes[0];
+  }
+
+  protected createHandler(
       operationHandler: OperationHandler<T>,
       operationId: string,
       authorizers: Record<string, Authorizer<T>>): OpenApiHandler<T, void> {
@@ -258,7 +244,7 @@ export class OpenApi<T> {
       res.body = res.body ?? resBody;
 
       // If status code is not specified and a non-ambiguous default status code is available, use it
-      res.statusCode = res.statusCode ?? getDefaultStatusCode(operation);
+      res.statusCode = res.statusCode ?? this.getDefaultStatusCode(operation);
 
       this.validateResponse(apiContext, res);
     };
@@ -266,7 +252,7 @@ export class OpenApi<T> {
 
   protected validateResponse({api, operation}: OpenAPI.Context, res: Response) {
     const {statusCode, headers, body} = res;
-    const errors: ErrorObject[] = [];
+    const errors: Ajv.ErrorObject[] = [];
 
     // Note that this call uses a customizeAjv function to configure removeAdditional
     const bodyErrors = api.validateResponse(body, operation).errors;
@@ -284,17 +270,17 @@ export class OpenApi<T> {
       errors.push(...headerErrors);
     }
 
-    this.handleValidationErrors(errors, `Response doesn't match schema`, this.invalidResponseStrategy);
+    this.handleValidationErrors(errors, `Response doesn't match schema`, this.responseValidationStrategy);
 
   }
 
-  protected handleValidationErrors(errors: ErrorObject[] | null | undefined, title: string, strategy: FailStrategy) {
+  protected handleValidationErrors(errors: Ajv.ErrorObject[] | null | undefined, title: string, strategy: FailStrategy) {
     if (errors?.length) {
       this.fail(`${title}: ${formatArray(errors, formatValidationError)}`, strategy);
     }
   }
 
-  private fail(message: string, strategy: FailStrategy) {
+  protected fail(message: string, strategy: FailStrategy) {
     if (strategy === 'throw') {
       throw new Error(message);
     }
@@ -323,10 +309,19 @@ export class OpenApi<T> {
    */
   register({definition, operations, authorizers, path}: RegistrationParams<T>): this {
     this.apiPromises.push(this.createApiAsync({
-      ...this.apiOptions,
+      handlers: {...defaultHandlers}, // must copy
       definition,
       apiRoot: path,
-      validate: true
+      validate: true,
+      ajvOpts: this.ajvOptions,
+      customizeAjv: (ajv, ajvOpts, validationContext) => {
+        if (validationContext === ValidationContext.Response) {
+          // Remove additional properties on response body only
+          ajv._opts.removeAdditional = this.responseBodyTrimming === 'none' ? false : this.responseBodyTrimming;
+        }
+        // Invoke custom function as well if applicable
+        return ajv;
+      }
     }, operations, authorizers));
 
     return this;
