@@ -27,12 +27,14 @@ export type StringParams = Params<string, OneOrMany<string>>;
 export interface Request<Body = unknown,
     PathParams extends Params = Params,
     Query extends Params = Params,
-    Headers extends Params = Params> {
+    Headers extends Params = Params,
+    Cookies extends Params = Params> {
   method: string;
   path: string;
   params: PathParams;
   query: Query;
   headers: Headers;
+  cookies: Cookies;
   body: Body;
 }
 

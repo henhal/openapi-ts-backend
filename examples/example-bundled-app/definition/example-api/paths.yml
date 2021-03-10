@@ -19,6 +19,24 @@
         schema: {$ref: '#/components/schemas/BarHeader'}
         required: false
         description: Foo
+      - in: cookie
+        name: c1
+        schema:
+          type: number
+        required: true
+        description: C1
+      - in: cookie
+        name: c2
+        schema:
+          type: string
+        required: false
+        description: C2
+      - in: cookie
+        name: c3
+        schema:
+          type: boolean
+        required: false
+        description: C3
     requestBody:
       required: true
       content:

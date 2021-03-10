@@ -141,7 +141,7 @@ export class OpenApi<T> {
   }
 
   protected parseRequest(apiContext: OpenAPI.Context): Request {
-    const {request: {method, path, params, headers, query, body}, operation} = apiContext;
+    const {request: {method, path, params, headers, query, cookies, requestBody: body}, operation} = apiContext;
     const errors: Ajv.ErrorObject[] = [];
 
     const req = {
@@ -150,10 +150,13 @@ export class OpenApi<T> {
       params: this.parseParams(params, operation, 'path', errors),
       headers: this.parseParams(headers, operation, 'header', errors),
       query: this.parseParams(query, operation, 'query', errors),
+      cookies: this.parseParams(cookies, operation, 'cookie', errors),
       body
     };
 
-    // This will throw 500 since validation should have already been performed and this is only for coercion
+    // This will throw 500 for errors since it reflects an inconsistency;
+    // validation should have already been performed and this is only for coercion.
+    // Ideally openapi-backend itself should handle coercion of request params.
     this.handleValidationErrors(errors, `Request doesn't match schema`, 'throw');
 
     return req;

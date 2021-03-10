@@ -20,7 +20,7 @@ export function formatArray<T>(items: T[], formatter: (item: T) => string, prefi
   return items.map(item => `${prefix}${formatter(item)}`).join('');
 }
 
-export type ParameterType = 'header' | 'query' | 'path';
+export type ParameterType = 'header' | 'query' | 'path' | 'cookie';
 
 export function getParameterMap(
     {parameters = []}: OpenAPIV3.OperationObject,
