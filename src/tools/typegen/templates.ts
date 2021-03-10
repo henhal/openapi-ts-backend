@@ -27,12 +27,12 @@ export type ResponseHeaders<OperationId extends keyof operations> =
 `;
 
 export const index = `
-import {OperationHandler, Request, RequestParams, Response} from 'openapi-ts-backend';
+import {OperationHandler, Request, Response} from 'openapi-ts-backend';
 import {Operation} from './operations';
 import {components} from './spec';
 
-export interface Operations<P extends RequestParams>
-    extends Record<string, OperationHandler<P, Request<any, any, any, any>, Response<any, any>>> {
+export interface Operations<T>
+    extends Record<string, OperationHandler<T, Request<any, any, any, any>, Response<any, any>>> {
   $OPERATIONS
 }
 
@@ -40,7 +40,7 @@ export type Schemas = components['schemas'];
 `;
 
 export const operations = `
-import {OperationHandler, Params, Request, RequestParams, Response} from 'openapi-ts-backend';
+import {OperationHandler, Params, Request, Response} from 'openapi-ts-backend';
 import {operations} from './spec';
 import {RequestBody, RequestHeaders, RequestPathParams, RequestQuery, ResponseBody, ResponseHeaders} from './helpers';
 
@@ -57,8 +57,8 @@ export type OperationResponse<OperationId extends keyof operations> =
         ResponseBody<OperationId>,
         Params & ResponseHeaders<OperationId>>;
 
-export type Operation<P extends RequestParams, OperationId extends keyof operations> =
-    OperationHandler<P,
+export type Operation<T, OperationId extends keyof operations> =
+    OperationHandler<T,
         OperationRequest<OperationId>,
         OperationResponse<OperationId>>;
 `;

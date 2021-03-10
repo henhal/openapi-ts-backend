@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "",
   "bin": {
-    "openapi-ts-backend": "dist/tools/typegen/cli.js"
+    "openapi-ts-backend": "dist/tools/cli.js"
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
