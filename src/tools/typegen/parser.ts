@@ -1,5 +1,7 @@
 import * as ts from 'typescript';
 
+console.log(`Using TypeScript v${ts.version}`);
+
 export function getApiOperationIds(specTypesPath: string) {
   const program = ts.createProgram([specTypesPath], {});
   const tsFile = program.getSourceFile(specTypesPath);
