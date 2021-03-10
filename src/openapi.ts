@@ -3,11 +3,12 @@ import * as OpenAPI from 'openapi-backend';
 
 import * as Errors from './errors';
 import {
+  ApiContext,
   Authorizer,
   Awaitable,
   ErrorHandler,
   Interceptor,
-  OperationHandler,
+  OperationHandler, OperationParams,
   Params,
   RawRequest,
   RawResponse,
@@ -35,7 +36,6 @@ type FailStrategy = 'warn' | 'throw';
 type ResponseTrimming = 'none' | 'failing' | 'all';
 
 type HandlerData<P> = {
-  req?: Request; // Assigned lazily
   res: Response;
   params: RequestParams<P>;
 };
@@ -62,10 +62,7 @@ const defaultHandlers: Partial<OpenAPI.Options['handlers']> = Object.freeze({
   },
   notImplemented(apiContext) {
     throw new Errors.NotImplementedError(apiContext.request);
-  },
-  // unauthorizedHandler(apiContext) {
-  //   throw new Errors.UnauthorizedError(apiContext);
-  // },
+  }
 });
 
 function isRawRequest(req: any): req is RawRequest {
@@ -146,14 +143,10 @@ export class OpenApi<T> {
       api.registerHandler(id, this.createHandler(handler, id, authorizers));
     }
 
-    // for (const [scheme, handler] of Object.entries(authorizers)) {
-    //   api.registerSecurityHandler(scheme, this.createSecurityHandler(handler, scheme));
-    // }
-
     return api;
   }
 
-  private parseParams(rawParams: StringParams, operation: OpenAPI.Operation, type: ParameterType): Params {
+  protected parseParams(rawParams: StringParams, operation: OpenAPI.Operation, type: ParameterType): Params {
     const {result, errors} = matchSchema<StringParams, Params>(rawParams, getParametersSchema(operation, type));
 
     this.handleValidationErrors(errors, `Request ${type} params don't match schema`, 'throw');
@@ -184,48 +177,58 @@ export class OpenApi<T> {
     };
   }
 
+  private async authorizeRequest(
+      apiContext: ApiContext,
+      req: Request,
+      res: Response,
+      operationParams: OperationParams<T>,
+      authorizers: Record<string, Authorizer<T>>
+  ) {
+    const {api: {definition}, operation} = apiContext;
+    const securityRequirements = operation.security ?? definition.security ?? [];
+
+    if (securityRequirements.length === 0) {
+      return {};
+    }
+
+    const errors: Error[] = [];
+
+    // Handle authorization here instead of using security handlers, to enable passing scopes etc
+    for (const securityRequirement of securityRequirements) {
+      const results: Record<string, any> = {};
+      let authorized = true;
+
+      for (const [name, scopes] of Object.entries(securityRequirement)) {
+        try {
+          results[name] = await authorizers[name](req, res, operationParams, {
+            name,
+            scheme: definition.components?.securitySchemes?.[name] as OpenAPIV3.SecuritySchemeObject,
+            parameters: {scopes}
+          });
+        } catch (error) {
+          authorized = false;
+          errors.push(error);
+        }
+      }
+
+      if (authorized) {
+        return results;
+      }
+    }
+
+    throw new Errors.UnauthorizedError(apiContext.request, errors);
+  }
+
   private createHandler(
       operationHandler: OperationHandler<T>,
       operationId: string,
       authorizers: Record<string, Authorizer<T>>): OpenApiHandler<T, void> {
-    return async (apiContext, data) => {
-      // Parse the request the first time
-      // TODO currently this handler is not re-used so caching it in data makes no difference really
-      data.req = data.req ?? this.parseRequest(apiContext);
-
+    return async (apiContext, {res, params}) => {
       const {api: {definition}, operation} = apiContext;
-      const {req, res, params} = data;
-      const results: Record<string, any> = {};
-      const operationParams = {operation, security: {results}, definition, ...params};
+      const req: Request = this.parseRequest(apiContext);
+      const operationParams: OperationParams<T> = {operation, security: {results: {}}, definition, ...params};
 
-      const errors: Error[] = [];
-      let authorized = true;
-
-      // Handle authorization here instead of using security handlers, to enable passing scopes etc
-      for (const securityRequirement of operation.security ?? definition.security ?? []) {
-        authorized = true;
-
-        for (const [name, scopes] of Object.entries(securityRequirement)) {
-          try {
-            results[name] = await authorizers[name](req, res, operationParams, {
-              name,
-              scheme: definition.components?.securitySchemes?.[name] as OpenAPIV3.SecuritySchemeObject,
-              parameters: {scopes}
-            });
-          } catch (error) {
-            authorized = false;
-            errors.push(error);
-          }
-        }
-
-        if (authorized) {
-          break;
-        }
-      }
-
-      if (!authorized) {
-        throw new Errors.UnauthorizedError(apiContext.request, errors);
-      }
+      operationParams.security.results = await this.authorizeRequest(apiContext, req, res, operationParams, authorizers);
 
       this.logger.info(`Calling operation ${operationId}`);
 
@@ -240,19 +243,6 @@ export class OpenApi<T> {
       this.validateResponse(apiContext, res);
     };
   }
-
-  // private createSecurityHandler<R>(
-  //     authorizer: Authorizer<T, R>,
-  //     name: string,
-  // ): OpenApiHandler<T, R> {
-  //   return async (apiContext, {res, params}) => {
-  //     const {operation, security} = apiContext;
-  //
-  //     this.logger.info(`Calling authorizer ${name}`);
-  //
-  //     return authorizer(apiContext.request, res, {operation, security, ...params});
-  //   };
-  // }
 
   protected validateResponse({api, operation}: OpenAPI.Context, response: Response) {
     const {statusCode, headers, body} = response;
@@ -277,7 +267,7 @@ export class OpenApi<T> {
   }
 
   protected handleValidationErrors(errors: ErrorObject[] | null | undefined, title: string, strategy: FailStrategy) {
-    if (errors) {
+    if (errors?.length) {
       this.fail(`${title}: ${formatArray(errors, formatValidationError)}`, strategy);
     }
   }
