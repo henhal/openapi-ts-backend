@@ -170,6 +170,7 @@ export class OpenApi<T> {
       body
     };
 
+    // This will throw 500 since validation should have already been performed and this is only for coercion
     this.handleValidationErrors(errors, `Request doesn't match schema`, 'throw');
 
     return req;
@@ -201,7 +202,8 @@ export class OpenApi<T> {
 
     const errors: Error[] = [];
 
-    // Handle authorization here instead of using security handlers, to enable passing scopes etc
+    // Handle authorization here instead of using security handlers, to enable passing scopes and solve
+    // issue with conflicting security schemes across requirements.
     for (const securityRequirement of securityRequirements) {
       const results: Record<string, any> = {};
       let authorized = true;
@@ -236,7 +238,8 @@ export class OpenApi<T> {
       const req: Request = this.parseRequest(apiContext);
       const operationParams: OperationParams<T> = {operation, security: {results: {}}, definition, ...params};
 
-      operationParams.security.results = await this.authorizeRequest(apiContext, req, res, operationParams, authorizers);
+      operationParams.security.results =
+          await this.authorizeRequest(apiContext, req, res, operationParams, authorizers);
 
       this.logger.info(`Calling operation ${operationId}`);
 
@@ -254,51 +257,9 @@ export class OpenApi<T> {
 
   protected validateResponse({api, operation}: OpenAPI.Context, res: Response) {
     const {statusCode, headers, body} = res;
-    // const {responses} = operation;
-    //
-    // if (!responses || !statusCode) {
-    //   return;
-    // }
-    //
-    // const response = (responses[statusCode] ??
-    //     responses[`${Math.floor(statusCode / 100)}xx`] ??
-    //     responses['default']) as OpenAPIV3.ResponseObject | undefined;
-    //
-    // if (!response) {
-    //   return this.fail(`Response status code ${statusCode} not specified for operation`,
-    //       this.invalidResponseStrategy);
-    // }
-    //
     const errors: ErrorObject[] = [];
-    //
-    // const bodySchema = response.content?.['application/json']?.schema as OpenAPIV3.SchemaObject | undefined;
-    //
-    // if (bodySchema) {
-    //   const validate = new Ajv({
-    //     removeAdditional: this.responseTrimming === 'none' ? false : this.responseTrimming
-    //   }).compile(bodySchema);
-    //
-    //   validate(body);
-    //
-    //   if (validate.errors) {
-    //     errors.push(...validate.errors);
-    //   }
-    // }
-    //
-    // const headersSchema = response.headers &&
-    //     getParametersSchema(response.headers as Record<string, OpenAPIV3.HeaderObject>);
-    //
-    // if (headersSchema) {
-    //   const validate = new Ajv().compile(headersSchema);
-    //
-    //   validate(headers);
-    //
-    //   if (validate.errors) {
-    //     errors.push(...validate.errors);
-    //   }
-    // }
-    //
 
+    // Note that this call uses a customizeAjv function to configure removeAdditional
     const bodyErrors = api.validateResponse(body, operation).errors;
 
     if (bodyErrors) {
@@ -367,11 +328,6 @@ export class OpenApi<T> {
             this.apiOptions.customizeAjv(originalAjv, ajvOpts, validationContext) :
             originalAjv;
       },
-      // ajvOpts: {
-      //   // This actually only affects response bodies
-      //   removeAdditional: this.responseTrimming === 'none' ? false : this.responseTrimming,
-      //   ...this.apiOptions.ajvOpts
-      // }
     }, operations, authorizers));
 
     return this;
