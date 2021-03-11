@@ -1,0 +1,80 @@
+openapi: 3.0.2
+info:
+  title: Example API
+  version: 1.0.0
+  description: Lorem ipsum
+tags:
+  - name: Example
+    description: Example endpoints
+components:
+  securitySchemes:
+    AccessToken:
+      type: oauth2
+      description: 'Validates a JWT token given in an `Authorization: Bearer` header'
+      flows:
+        password:
+          tokenUrl: 'https://api.example.com/oauth/token'
+          scopes:
+            full: Full access
+            some: Some access
+  schemas:
+    Title:
+      type: string
+      enum:
+        - Mr
+        - Mrs
+        - Miss
+    Person:
+      type: object
+      description: A person
+      additionalProperties: false
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        title:
+          $ref: '#/components/schemas/Title'
+        photo:
+          type: string
+          format: byte
+    Greeting:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+      additionalProperties: false
+
+paths:
+  /greet/{name}:
+    get:
+      operationId: greet
+      summary: Greet the caller
+      description: This greets the caller
+      tags:
+        - Example
+      security:
+        - AccessToken:
+            - some
+            - full
+      parameters:
+        - in: path
+          name: name
+          schema:
+            type: string
+          required: true
+        - in: query
+          name: title
+          schema:
+            $ref: '#/components/schemas/Title'
+          description: Bar
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Greeting'
+

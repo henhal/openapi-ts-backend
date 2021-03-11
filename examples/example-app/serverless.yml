@@ -1,0 +1,62 @@
+---
+service: openapi-ts-example
+
+provider:
+  name: aws
+  profile: ${{opt:profile}}
+  region: ${{opt:region, "eu-north-1"}}
+  stackName: ${{self:service.name}}-${{self:provider.stage}}
+  stage: ${{opt:stage, "dev"}}
+  variableSyntax: "\\${{([ ~:a-zA-Z0-9._\\'\",\\-\\/\\(\\)]+?)}}"
+  runtime: nodejs14.x
+  environment:
+    STAGE: ${{self:provider.stage}}
+    LOG_LEVEL: debug
+  timeout: 10
+
+custom:
+  bundle:
+    sourceMaps: true
+    packager: yarn
+    copyFiles:
+      - from: 'definition/**'
+  prune:
+    automatic: true
+    number: 5
+  scripts:
+    hooks:
+      # Generate type definition source code before compiling and bundling
+      package:initialize: yarn run api:types
+
+package:
+  individually: true
+
+functions:
+  ExampleApi:
+    handler: src/functions/example/index.default
+    description: "Example API"
+    events:
+      - http:
+          path: /{proxy+}
+          method: any
+          private: false
+
+resources:
+  # Add any CF resources here
+
+  Outputs:
+    # Name of this stack
+    StackName:
+      Value:
+        Fn::Sub: '${AWS::StackName}'
+    # Name of the API endpoint
+    ServiceEndpoint:
+      Export:
+        Name:
+          Fn::Sub: '${AWS::StackName}-ServiceEndpoint'
+
+plugins:
+  - serverless-prune-plugin
+  - serverless-plugin-scripts
+  - serverless-bundle
+

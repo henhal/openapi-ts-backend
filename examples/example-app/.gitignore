@@ -1,0 +1,6 @@
+# TS generated files
+build/
+tsconfig.tsbuildinfo
+
+out/
+src/**/gen
