@@ -1,12 +1,16 @@
-import {HttpError, LambdaOpenApi, LambdaSource, Request, SecurityRequirement} from 'openapi-ts-backend';
+import {
+  HttpError,
+  LambdaOpenApi,
+  LambdaSource,
+  OpenApi,
+  RawRequest,
+  Request,
+  SecurityRequirement,
+} from 'openapi-ts-backend';
 
-import {Operations} from 'gen/example-api';
+import {OperationHandlers} from 'gen/example-api';
 
 const {PWD: ROOT_PATH} = process.env;
-
-type Context = {
-  models: any;
-};
 
 type AuthSession = {
   user: {
@@ -15,44 +19,24 @@ type AuthSession = {
   scopes: string[];
 };
 
-// type Operation<ReqBody, ResBody> = LambdaOperationHandler<Context, Request<ReqBody>, Response<ResBody>>;
-//
-// type Operations = {
-//   greet: Operation<ExampleApi.GreetRequest, ExampleApi.GreetResponse>;
-//   hello: Operation<void, ExampleApi.GreetResponse>;
-// };
-
-// class HttpError extends Error {
-//   constructor(message: string, readonly statusCode = 500) {
-//     super(message);
-//   }
-// }
-
-async function createContextAsync(): Promise<Context> {
-  return {
-    // any additional data to be included as params to every request
-      models: 'FOO'
-  };
-}
-
 const DEBUG_SESSIONS: Record<string, AuthSession> = {
   FULL: {
     user: {
-      name: 'Alice'
+      name: 'Alice',
     },
-    scopes: ['full']
+    scopes: ['full'],
   },
   SOME: {
     user: {
-      name: 'Bob'
+      name: 'Bob',
     },
-    scopes: ['some']
+    scopes: ['some'],
   },
   NONE: {
     user: {
-      name: 'Charlie'
+      name: 'Charlie',
     },
-    scopes: ['bogus']
+    scopes: ['bogus'],
   },
 };
 
@@ -71,13 +55,13 @@ function verifyScopes(grantedScopes: string[], requiredScopes: string[]) {
         `Insufficient scope, need at least one of: ${requiredScopes.map(scope => `'${scope}'`).join(', ')}`,
         403,
         {
-          requiredScopes
+          requiredScopes,
         });
   }
 }
 
 function authorize<T>(req: Request, requirement: SecurityRequirement): AuthSession {
-  console.debug(`Authorize`, requirement);
+  console.debug(`Authorize: `, requirement);
   const header = req.headers?.['authorization'];
 
   if (typeof header !== 'string') {
@@ -89,7 +73,7 @@ function authorize<T>(req: Request, requirement: SecurityRequirement): AuthSessi
   // Verify scopes required for the current operation against scopes granted by the token
   const requiredScopes = requirement.parameters.scopes;
 
-  console.debug(`Operation requires scopes ${requiredScopes}`);
+  console.debug(`Operation requires scopes ${JSON.stringify(requiredScopes)}`);
   if (requiredScopes) {
     verifyScopes(session.scopes, requiredScopes);
   }
@@ -103,53 +87,34 @@ console.debug(`Using OpenAPI document ${definition}`);
 
 type CustomParams = unknown;
 
-const operations: Operations<LambdaSource & CustomParams> = {
+const operations: OperationHandlers<LambdaSource & CustomParams> = {
   greet: (req, res, params) => {
-    console.log(req);
-    const {person} = req.body;
-    const hhh = req.headers;
-    const aaa = req.headers.abc;
-    const bbb = req.headers.foo;
-    const ccc = res.headers.baz;
+    const {name} = req.params;
 
-
-    res.headers.baz = 42;
-    res.headers.abc = 44;
-    res.headers.asjkajsktja='gll';
-
-    if (!person.name.length) {
+    if (!name.length) {
       throw new HttpError(`Don't be a stranger!`, 400);
     }
 
     return {
-      message: `Hello, ${person.name}!`,
-      qux: 42
-    };
-  },
-  hello: async (req, res, params) => {
-    const hhh = req.headers;
-    const abcd = hhh.abcd;
-    res.statusCode = 200;
-
-    return {
-      message: `Hello, ${req.params.name}`,
-      foo: 'bar'
+      message: `Hello, ${name}!`,
     };
   },
 };
 
 export default new LambdaOpenApi<CustomParams>()
     .intercept(((req, res, params) => {
-      console.log(`Event:`, params.data.lambda.event);
+      console.log(`Lambda event:`, params.data.lambda.event);
     }))
     .register({
       definition,
       authorizers: {
-        AccessToken: (req, res, params, requirement ) => {
-          //console.debug(`AccessToken: res=${JSON.stringify(res)}`);
+        AccessToken: (req, res, params, requirement) => {
           return authorize(req, requirement);
-        }
+        },
       },
       operations,
-      path: '/'
+      path: '/',
     }).eventHandler();
+
+
+new OpenApi<{foo:string}>().handleRequest({} as RawRequest, {foo:'hello'})

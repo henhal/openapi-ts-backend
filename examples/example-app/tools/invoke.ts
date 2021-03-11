@@ -43,6 +43,7 @@ async function invokeHandler() {
   const result = await (handler(event, context, undefined as unknown) as Promise<Lambda.APIGatewayProxyResult>);
 
   console.log(
+      `--------\n` +
       `HTTP ${result.statusCode}\n` +
       `${formatHeaders(result.headers || {})}` +
       `\n` +

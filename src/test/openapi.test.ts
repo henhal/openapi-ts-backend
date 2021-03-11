@@ -29,6 +29,9 @@ const operations: OperationHandlers<unknown> = {
       query: getTypeMap(req.query),
       cookies: getTypeMap(req.cookies),
     }
+  },
+  deletePerson: req => {
+    return;
   }
 };
 

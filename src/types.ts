@@ -99,7 +99,7 @@ export type ErrorHandler<T = unknown> = (
 ) => Awaitable<void>
 
 /**
- * An interceptor invoked for every request before routing it. Headers and other parameters are not coerced.
+ * An interceptor invoked for every request before routing it. Headers and other parameters are not parsed or coerced.
  */
 export type Interceptor<T> = (
     req: RawRequest,

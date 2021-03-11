@@ -18,18 +18,21 @@
   },
   "author": "henrik.hall2@gmail.com",
   "files": [
-    "dist/",
-    "bin/"
+    "dist/"
   ],
   "keywords": [
     "openapi",
+    "openapi3",
+    "http",
+    "server",
+    "api",
+    "backend",
+    "node",
     "typescript",
     "ts",
     "json-schema",
     "codegen",
     "typegen",
-    "backend",
-    "node",
     "aws",
     "lambda"
   ],
