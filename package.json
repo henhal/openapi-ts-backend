@@ -7,6 +7,14 @@
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "homepage": "https://github.com/henhal/openapi-ts-backend#readme",
+  "bugs": {
+    "url": "https://github.com/henhal/openapi-ts-backend/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/henhal/openapi-ts-backend"
+  },
   "scripts": {
     "build": "tsc",
     "clean": "rm -rf dist",
