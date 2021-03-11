@@ -19,7 +19,7 @@ custom:
     sourceMaps: true
     packager: yarn
     copyFiles:
-      - from: 'out/spec/**'
+      - from: 'definition/**'
   prune:
     automatic: true
     number: 5

@@ -1,9 +1,0 @@
-AccessToken:
-  type: oauth2
-  description: 'Validates a JWT token given in an `Authorization: Bearer` header'
-  flows:
-    password:
-      tokenUrl: 'https://api.example.com/oauth/token'
-      scopes:
-        full: 'Full access'
-        some: 'Some access'

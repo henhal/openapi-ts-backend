@@ -12,6 +12,7 @@
     "clean": "rm -rf dist",
     "lint": "eslint src --ext js,ts --max-warnings 0",
     "postbuild": "chmod u+x dist/tools/cli.js",
+    "prebuild": "rm -rf src/test/gen",
     "pretest": "MODULE_PATH=../.. ts-node src/tools/cli.ts generate-types src/test/api.yml src/test/gen",
     "test": "NODE_PATH=src LOG_LEVEL=${LOG_LEVEL:=error} jest --config src/test/jest.config.js"
   },

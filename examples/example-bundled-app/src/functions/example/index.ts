@@ -97,7 +97,7 @@ function authorize<T>(req: Request, requirement: SecurityRequirement): AuthSessi
   return session;
 }
 
-const definition = `${ROOT_PATH}/out/spec/example-api/api.yml`;
+const definition = `${ROOT_PATH}/definition/example-api/api.yml`;
 
 console.debug(`Using OpenAPI document ${definition}`);
 

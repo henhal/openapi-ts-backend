@@ -29,11 +29,8 @@
   },
   "private": true,
   "scripts": {
-    "api:build": "tools/spec.sh definition/example-api/api.yml out/spec/example-api",
-    "api:docs": "yarn run api:build && tools/docs.sh out/spec/example-api/api.yml out/html/example-api definition/example-api/assets",
-    "api:types": "yarn run api:build && mkdir -p src/gen/example-api && openapi-ts-backend generate-types out/spec/example-api/api.yml src/gen/example-api",
-    "ts:build": "yarn run api:types && tools/build.sh",
-    "clean": "rm -rf build && rm -rf out && rm -rf src/gen",
+    "api:docs": "npx redoc-cli bundle definition/example-api/api.yml -o out/html/example-api/index.html",
+    "api:types": "mkdir -p src/gen/example-api && openapi-ts-backend generate-types definition/example-api/api.yml src/gen/example-api",
     "invoke-local": "yarn run-ts tools/invoke.ts",
     "invoke-local:example": "yarn invoke-local src/functions/example/index.default POST /greet '{\"content-type\":\"application/json\",\"authorization\":\"Bearer FULL\"}' '{\"person\":{\"name\":\"Henrik\", \"gender\": \"MALE\"}}'",
     "lint": "eslint src --ext js,ts --max-warnings 0",
