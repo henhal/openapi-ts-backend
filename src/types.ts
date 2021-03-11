@@ -4,8 +4,6 @@ import {OneOrMany} from './utils';
 import {OpenApi} from './openapi';
 import {OpenAPIV3} from 'openapi-types';
 
-export type ApiContext = OpenAPI.Context;
-
 export type Params<K extends string = string, V = OneOrMany<string | number | boolean | undefined>> = Record<K, V>;
 
 export type StringParams = Params<string, OneOrMany<string>>;
@@ -59,6 +57,9 @@ export interface Response<Body = unknown, Headers extends Params = Params> {
   body?: Body;
 }
 
+/**
+ * A raw request with unparsed string headers and query parameters
+ */
 export type RawRequest = {
   method: string;
   path: string;
@@ -67,12 +68,18 @@ export type RawRequest = {
   body?: unknown;
 };
 
+/**
+ * A raw response with string headers
+ */
 export type RawResponse = {
   statusCode: number;
   headers: StringParams;
   body?: unknown
 };
 
+/**
+ * Request params passed to every request
+ */
 export interface RequestParams<T = unknown> {
   readonly api: OpenApi<T>;
   readonly data: T;
@@ -87,7 +94,7 @@ export interface RequestParams<T = unknown> {
  *
  * @param req       Request
  * @param res       Response
- * @param context   Context
+ * @param params    Params
  * @param err       Error thrown by the handler or router
  * @async
  */
@@ -158,11 +165,11 @@ export type SecurityRequirement = {
  * A handler implementing a security scheme.
  *
  * Authorizers are registered to handle a given securityScheme as defined in the API definition.
- * The authorizer may throw an error if the request was not properly authenticated or return
- * data related to the authentication so that it can be stored in the context.
- * The value returned from the authorizer will be stored in the API context's security object.
+ * The authorizer must throw an error if the given security scheme was not fulfilled, or return
+ * data related to the authentication so that it can be stored in the params.
+ * The value returned from the authorizer will be stored in `params.security`.
  * Example: If an authorized is registered for the security scheme "ApiKey", the value returned
- * from the authorizer will be stored in context.security['ApiKey'].
+ * from the authorizer will be stored in params.security['ApiKey'].
  *
  * @template T  Type of data
  * @template R  Type of produced result for this security scheme, e.g. a session, user object or similar

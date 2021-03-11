@@ -4,7 +4,6 @@ import {ValidationContext} from 'openapi-backend';
 
 import * as Errors from './errors';
 import {
-  ApiContext,
   Authorizer,
   Awaitable,
   ErrorHandler,
@@ -174,7 +173,7 @@ export class OpenApi<T> {
   }
 
   private async authorizeRequest(
-      apiContext: ApiContext,
+      apiContext: OpenAPI.Context,
       req: Request,
       res: Response,
       operationParams: OperationParams<T>,

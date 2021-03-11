@@ -32,7 +32,7 @@
     "api:docs": "npx redoc-cli bundle definition/example-api/api.yml -o out/html/example-api/index.html",
     "api:types": "mkdir -p src/gen/example-api && openapi-ts-backend generate-types definition/example-api/api.yml src/gen/example-api",
     "invoke-local": "yarn run-ts tools/invoke.ts",
-    "invoke-local:example": "yarn invoke-local src/functions/example/index.default POST /greet '{\"content-type\":\"application/json\",\"authorization\":\"Bearer FULL\"}' '{\"person\":{\"name\":\"Henrik\", \"gender\": \"MALE\"}}'",
+    "invoke-local:example": "yarn invoke-local src/functions/example/index.default GET /greet/world '{\"content-type\":\"application/json\",\"authorization\":\"Bearer FULL\"}'",
     "lint": "eslint src --ext js,ts --max-warnings 0",
     "run-ts": "NODE_PATH=src ts-node",
     "test": "NODE_PATH=src jest --config src/test/jest.config.js"

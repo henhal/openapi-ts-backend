@@ -18,5 +18,5 @@ An example API using LambdaOpenAPI and serverless-bundle
 
 * Has tools to invoke the function locally for testing
 
-  `$ yarn invoke-local src/functions/example/index.default POST /greet '{"content-type":"application/json","authorization":"Bearer SOME"}' '{"person":{"name":"John Doe", "gender": "MALE"}}'`
+  `$ yarn invoke-local src/functions/example/index.default GET /greet/world '{"content-type":"application/json","authorization":"Bearer SOME"}'`
 
