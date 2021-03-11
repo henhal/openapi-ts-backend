@@ -2,6 +2,14 @@
   "name": "example-openapi-ts-lambda-backend",
   "version": "1.0.0",
   "author": "henrik.hall2@gmail.com",
+  "homepage": "https://github.com/henhal/openapi-ts-backend#readme",
+  "bugs": {
+    "url": "https://github.com/henhal/openapi-ts-backend/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/henhal/openapi-ts-backend"
+  },
   "dependencies": {
     "jsonwebtoken": "^8.5.1",
     "openapi-ts-backend": "../../"
