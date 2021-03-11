@@ -9,13 +9,13 @@ import {
   Awaitable,
   ErrorHandler,
   Interceptor,
-  OperationHandler,
   OperationParams,
   Params,
   RawRequest,
   RawResponse,
   RegistrationParams,
   Request,
+  RequestHandler,
   RequestParams,
   Response,
   StringParams,
@@ -122,7 +122,7 @@ export class OpenApi<T> {
   }
 
   private async createApi(apiOptions: OpenAPI.Options,
-                               operations: Record<string, OperationHandler<T>>,
+                               operations: Record<string, RequestHandler<T>>,
                                authorizers: Record<string, Authorizer<T>> = {}) {
     const api = await new OpenAPI.OpenAPIBackend(apiOptions).init();
 
@@ -229,7 +229,7 @@ export class OpenApi<T> {
   }
 
   protected createHandler(
-      operationHandler: OperationHandler<T>,
+      operationHandler: RequestHandler<T>,
       operationId: string,
       authorizers: Record<string, Authorizer<T>>): OpenApiHandler<T, void> {
     return async (apiContext, {res, params}) => {

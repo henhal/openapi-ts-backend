@@ -37,10 +37,11 @@ export default async function main(program: string, command: string, [inputFile,
   const specTypesPath = await createSpecTypes(inputFile, outputDir);
   const operationIds = getApiOperationIds(specTypesPath);
 
-  write(outputDir, `helpers.ts`, templates.helpers);
-  write(outputDir, `operations.ts`, templates.operations);
-  write(outputDir, `index.ts`, templates.index.replace('$OPERATIONS',
-      operationIds.map(id => `  ${id}: Operation<T, '${id}'>;`).join('\n')));
+  write(outputDir, `utils.ts`, templates.utils);
+  write(outputDir, `requests.ts`, templates.requests);
+  write(outputDir, `operations.ts`, templates.operations.replace('$OPERATIONS',
+      operationIds.map(id => `  ${id}: OperationHandler<T, '${id}'>;`).join('\n')));
+  write(outputDir, `index.ts`, templates.index);
 
   console.log(`Types written to ${outputDir}`);
 }

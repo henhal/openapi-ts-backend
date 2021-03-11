@@ -7,10 +7,16 @@ import {OpenAPIV3} from 'openapi-types';
 export type ApiContext = OpenAPI.Context;
 
 export type Params<K extends string = string, V = OneOrMany<string | number | boolean | undefined>> = Record<K, V>;
+
 export type StringParams = Params<string, OneOrMany<string>>;
 
 /**
- * Request
+ * @template T Type of value or promised value
+ */
+export type Awaitable<T> = T | Promise<T>;
+
+/**
+ * A typed request
  * @template Body Type of request body
  * @template PathParams Type of request path parameters
  * @template Query Type of request query
@@ -53,9 +59,6 @@ export interface Response<Body = unknown, Headers extends Params = Params> {
   body?: Body;
 }
 
-// TODO Response class with methods?
-// res.complete(201, {body, headers: {'x-foo': 42}})
-
 export type RawRequest = {
   method: string;
   path: string;
@@ -69,11 +72,6 @@ export type RawResponse = {
   headers: StringParams;
   body?: unknown
 };
-
-/**
- * @template T Type of value or promised value
- */
-export type Awaitable<T> = T | Promise<T>;
 
 export interface RequestParams<T = unknown> {
   readonly api: OpenApi<T>;
@@ -100,19 +98,17 @@ export type ErrorHandler<T = unknown> = (
     err: Error,
 ) => Awaitable<void>
 
-type Handler<T, P extends RequestParams<T>, R> = (
+/**
+ * An interceptor invoked for every request before routing it. Headers and other parameters are not coerced.
+ */
+export type Interceptor<T> = (
     req: RawRequest,
     res: Response,
-    params: P
-) => Awaitable<R>;
+    params: RequestParams<T>
+) => Awaitable<void>;
 
 /**
- * An interceptor invoked for every request before routing it.
- */
-export type Interceptor<T> = Handler<T, RequestParams<T>, void>;
-
-/**
- * The context always present in all routed requests
+ * The params provided to request handlers
  */
 export type OperationParams<T = unknown> = RequestParams<T> & {
   operation: OpenAPIV3.OperationObject;
@@ -123,13 +119,15 @@ export type OperationParams<T = unknown> = RequestParams<T> & {
 };
 
 /**
- * A handler implementing a single API operation
+ * A handler implementing a single API operation.
+ * The request and response types are coerced to fit the schemas of the matched operation.
+ *
  * This function may alter the given response object and/or return a response body.
  * If res.body is not set when this function returns, the return value of the handler will be used as the response body.
  * If res.statusCode is not set when this function returns and a single 2xx status code exists in the response schema,
  * it will be used. Otherwise, not setting any status code will cause a 500 error.
  *
- * @template T          Type of data
+ * @template T          Type of custom data passed in params
  * @template Req        Type of request
  * @template Res        Type of response
  *
@@ -139,13 +137,16 @@ export type OperationParams<T = unknown> = RequestParams<T> & {
  * @async
  * @returns Response body or nothing
  */
-export type OperationHandler<T,
+export type RequestHandler<T,
     Req extends Request = Request,
     Res extends Response = Response> = (
         req: Req,
         res: Res,
         params: OperationParams<T>) => Awaitable<Res['body'] | void>;
 
+/**
+ * A security requirement to be fulfilled by an authorizer
+ */
 export type SecurityRequirement = {
   name: string;
   scheme: OpenAPIV3.SecuritySchemeObject;
@@ -172,7 +173,6 @@ export type SecurityRequirement = {
  * @async
  * @returns Security scheme result
  */
-//export type Authorizer<T, R = unknown> = Handler<T, OperationParams<T>, R>;
 export type Authorizer<T, R = unknown> = (
     req: Request,
     res: Response,
@@ -190,7 +190,7 @@ export type Authorizer<T, R = unknown> = (
  */
 export type RegistrationParams<T> = {
   definition: OpenAPI.Document | string;
-  operations: Record<string, OperationHandler<T>>;
+  operations: Record<string, RequestHandler<T>>;
   authorizers?: Record<string, Authorizer<T>>;
   path?: string;
 };

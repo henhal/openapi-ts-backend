@@ -1,6 +1,6 @@
 import {OpenApi} from '../openapi';
 
-import {Operations} from './gen';
+import {OperationHandlers} from './gen';
 import {HttpError} from '../errors';
 
 function greet(title: string, name: string): string {
@@ -11,19 +11,16 @@ function getTypeMap(obj: any) {
   return Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, typeof v]));
 }
 
-const operations: Operations<unknown> = {
-  hello: (req, res, params) => {
+const operations: OperationHandlers<unknown> = {
+  greet: req => {
     const {params: {name}, query: {title = ''}} = req;
-    return {
-      message: greet(title, name),
-    };
-  },
-  greet: (req, res) => {
-    const {body: {person: {title = '', name}}} = req;
 
     return {
       message: greet(title, name),
     };
+  },
+  addPerson: req => {
+    return req.body.person;
   },
   getTypes: req => {
     return {
@@ -51,28 +48,56 @@ describe('API tests', () => {
         },
       });
 
-  it('Should handle a valid request', async () => {
+  it('Should handle a valid request with implicit status 200', async () => {
     const res = await api.handleRequest({
       method: 'GET',
-      path: '/greet/John',
-      // TODO make headers optional in RawRequest?
+      path: '/greet/John%20Doe',
       headers: {
         authorization: 'true',
       },
-      query: {},
+      query: {
+        title: 'Mr'
+      }
     });
     expect(res.statusCode).toEqual(200);
   });
 
-  it('Should fail an unauthorized request', async () => {
+  it('Should handle a valid request with implicit status 201', async () => {
+    const res = await api.handleRequest({
+      method: 'POST',
+      path: '/persons',
+      headers: {
+        authorization: 'true',
+      },
+      body: {
+        person: {
+          name: 'John Doe'
+        }
+      }
+    });
+    expect(res.statusCode).toEqual(201);
+  });
+
+  it('Should return 401 for unauthorized request', async () => {
+    const res = await api.handleRequest({
+      method: 'Get',
+      path: '/greet/John%20Doe',
+      headers: {},
+      query: {}
+    });
+
+    expect(res.statusCode).toEqual(401);
+  });
+
+  it('Should return 404 for invalid path', async () => {
     const res = await api.handleRequest({
       method: 'GET',
-      path: '/greet/John',
+      path: '/foobar',
       headers: {},
       query: {},
     });
 
-    expect(res.statusCode).toEqual(401);
+    expect(res.statusCode).toEqual(404);
   });
 
   it('Should coerce params', async () => {
@@ -88,6 +113,8 @@ describe('API tests', () => {
       },
     });
 
+    // This echoes the type of all supplied headers
+
     expect(res.statusCode).toEqual(200);
     expect(res.body).toEqual({
       params: {foo: 'number'},
@@ -95,5 +122,25 @@ describe('API tests', () => {
       headers: {baz: 'number', 'cookie': 'string'},
       cookies: {qux: 'number'}
     });
+  });
+
+  it('Should fail to coerce invalid params', async () => {
+    // Params are not coercable to numbers
+    const res = await api.handleRequest({
+      method: 'GET',
+      path: '/types/INVALID',
+      headers: {
+        baz: 'INVALID',
+        cookie: 'qux=INVALID'
+      },
+      query: {
+        bar: 'INVALID'
+      },
+    });
+
+    expect(res.statusCode).toEqual(400);
+    const errors = (res.body as any)?.data?.errors;
+    expect(errors).toBeDefined();
+    expect(errors[0].message).toContain('should be number');
   });
 });

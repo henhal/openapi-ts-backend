@@ -1,11 +1,20 @@
 const {MODULE_PATH = 'openapi-ts-backend'} = process.env;
 
-export const helpers = `
+export const utils = `
+/**
+ * Get T[K] if K is a key in T, otherwise D
+ */
+export type IndexBy<T, K extends keyof any, D = unknown> = (K extends keyof T ? T[K] : D);
+
+/**
+ *  Get all values of T if it is an object, otherwise D
+ */
+export type ValueOf<T, D = never> = T extends Record<string, unknown> ? T[keyof T] : D;
+`;
+
+export const requests = `
 import {operations} from './spec';
-
-type IndexBy<T, K extends keyof any, D = unknown> = (K extends keyof T ? T[K] : D);
-
-type ValueOf<T, D = never> = T extends {} ? T[keyof T] : D;
+import {IndexBy, ValueOf} from './utils';
 
 export type RequestBody<OperationId extends keyof operations> =
     operations[OperationId] extends {requestBody: Record<string, any>} ?
@@ -29,38 +38,38 @@ export type ResponseHeaders<OperationId extends keyof operations> =
 `;
 
 export const index = `
-import {OperationHandler, Request, Response} from '${MODULE_PATH}';
-import {Operation} from './operations';
-import {components} from './spec';
+import {components, operations} from './spec';
+import {IndexBy} from './utils';
 
-export interface Operations<T>
-    extends Record<string, OperationHandler<T, Request<any, any, any, any>, Response<any, any>>> {
-$OPERATIONS
-}
+export type Schemas = IndexBy<components, 'schemas', Record<string, never>>;
+export type Responses = IndexBy<components, 'responses', Record<string, never>>;
+export type Operations = operations;
 
-export type Schemas = components['schemas'];
+export * from './requests';
+export * from './operations';
 `;
 
 export const operations = `
-import {OperationHandler, Params, Request, Response} from '${MODULE_PATH}';
+import {RequestHandler, Params, Request, Response} from '${MODULE_PATH}';
 import {operations} from './spec';
-import {RequestBody, RequestHeaders, RequestPathParams, RequestQuery, ResponseBody, ResponseHeaders} from './helpers';
+import {RequestBody, RequestHeaders, RequestPathParams, RequestQuery, ResponseBody, ResponseHeaders} from './requests';
 
-export type OperationRequest
-<OperationId extends keyof operations> =
-    Request<
-        RequestBody<OperationId>,
-        Params & RequestPathParams<OperationId>,
-        Params & RequestQuery<OperationId>,
-        Params & RequestHeaders<OperationId>>;
+export type OperationRequest<OperationId extends keyof operations> = Request<
+    RequestBody<OperationId>,
+    Params & RequestPathParams<OperationId>,
+    Params & RequestQuery<OperationId>,
+    Params & RequestHeaders<OperationId>>;
 
-export type OperationResponse<OperationId extends keyof operations> =
-    Response<
-        ResponseBody<OperationId>,
-        Params & ResponseHeaders<OperationId>>;
+export type OperationResponse<OperationId extends keyof operations> = Response<
+    ResponseBody<OperationId>,
+    Params & ResponseHeaders<OperationId>>;
 
-export type Operation<T, OperationId extends keyof operations> =
-    OperationHandler<T,
-        OperationRequest<OperationId>,
-        OperationResponse<OperationId>>;
+export type OperationHandler<T, OperationId extends keyof operations> = RequestHandler<T,
+    OperationRequest<OperationId>,
+    OperationResponse<OperationId>>;
+    
+export interface OperationHandlers<T>
+    extends Record<string, RequestHandler<T, Request<any, any, any, any>, Response<any, any>>> {
+$OPERATIONS
+}   
 `;

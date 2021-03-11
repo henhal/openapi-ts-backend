@@ -48,60 +48,11 @@ components:
       additionalProperties: false
 
 paths:
-  /greet:
-    post:
+  /greet/{name}:
+    get:
       operationId: greet
       summary: Greet the caller
       description: This greets the caller
-      tags:
-        - Example
-      security:
-        - AccessToken:
-            - some
-            - full
-      parameters:
-        - in: header
-          name: foo
-          schema:
-            type: number
-          description: Foo
-        - in: query
-          name: bar
-          schema:
-            type: number
-          description: Bar
-        - in: cookie
-          name: baz
-          schema:
-            type: number
-          description: Baz
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - person
-              properties:
-                person:
-                  $ref: '#/components/schemas/Person'
-      responses:
-        '200':
-          description: OK
-          headers:
-            qux:
-              schema:
-                type: number
-                description: Qux
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Greeting'
-  '/greet/{name}':
-    get:
-      operationId: hello
-      summary: Hello
       tags:
         - Example
       security:
@@ -114,13 +65,11 @@ paths:
           schema:
             type: string
           required: true
-          description: Name
         - in: query
           name: title
           schema:
             $ref: '#/components/schemas/Title'
-          required: false
-          description: Age
+          description: Bar
       responses:
         '200':
           description: OK
@@ -128,6 +77,35 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Greeting'
+  /persons:
+    post:
+      operationId: addPerson
+      summary: Add a person
+      description: This adds a person
+      tags:
+        - Example
+      security:
+        - AccessToken:
+            - some
+            - full
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - person
+              properties:
+                person:
+                  $ref: '#/components/schemas/Person'
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Person'
   '/types/{foo}':
     get:
       operationId: getTypes
