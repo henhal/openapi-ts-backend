@@ -2,6 +2,10 @@ import * as ts from 'typescript';
 
 console.log(`Using TypeScript v${ts.version}`);
 
+function findPath(operationId: string) {
+
+}
+
 export function getApiOperationIds(specTypesPath: string): string[] {
   const program = ts.createProgram([specTypesPath], {});
   const tsFile = program.getSourceFile(specTypesPath);

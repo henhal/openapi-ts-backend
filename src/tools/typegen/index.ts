@@ -4,8 +4,8 @@ import {readFileSync, writeFileSync, mkdirSync, existsSync} from 'fs';
 import path from 'path';
 
 import {getApiOperationIds} from './parser';
-import * as templates from './templates';
 
+const {MODULE_PATH = 'openapi-ts-backend'} = process.env;
 const YAML_EXTENSION = /\.ya?ml$/;
 
 function write(dirName: string, fileName: string, data: string) {
@@ -14,6 +14,10 @@ function write(dirName: string, fileName: string, data: string) {
   writeFileSync(outputPath, data);
 
   return outputPath;
+}
+
+function readTemplate(name: string) {
+  return readFileSync(`${__dirname}/templates/${name}.ts.template`).toString();
 }
 
 async function createSpecTypes(specPath: string, outputDir: string) {
@@ -34,14 +38,18 @@ export default async function main(program: string, command: string, [inputFile,
     mkdirSync(outputDir);
   }
 
+  const templates = Object.fromEntries([
+      'index', 'operations', 'types', 'utils'
+  ].map(name => [name, readTemplate(name)]));
+
   const specTypesPath = await createSpecTypes(inputFile, outputDir);
   const operationIds = getApiOperationIds(specTypesPath);
 
   write(outputDir, `utils.ts`, templates.utils);
-  write(outputDir, `requests.ts`, templates.requests);
-  write(outputDir, `operations.ts`, templates.operations.replace('$OPERATIONS',
-      operationIds.map(id => `  ${id}: OperationHandler<T, '${id}'>;`).join('\n')));
-  write(outputDir, `index.ts`, templates.index);
+  write(outputDir, `types.ts`, templates.types);
+  write(outputDir, `operations.ts`, templates.operations.replace('${MODULE_PATH}', MODULE_PATH));
+  write(outputDir, `index.ts`, templates.index.replace('${OPERATIONHANDLERS}',
+      operationIds.map(id => `  ${id}: OperationHandler<T, operations["${id}"]>;`).join('\n')));
 
   console.log(`Types written to ${outputDir}`);
 }
