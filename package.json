@@ -1,6 +1,6 @@
 {
   "name": "openapi-ts-backend",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "",
   "bin": {
     "openapi-ts-backend": "dist/tools/cli.js"
