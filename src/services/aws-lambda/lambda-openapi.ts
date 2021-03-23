@@ -84,7 +84,7 @@ export class LambdaOpenApi<T> extends OpenApi<LambdaSource & T> {
    *
    * @return A lambda event handler function
    */
-  eventHandler(...[data]: T extends Record<string, unknown> ? T[] : []): Lambda.APIGatewayProxyHandler {
+  eventHandler(...[data]: T extends Record<string, any> ? T[] : []): Lambda.APIGatewayProxyHandler {
     return async (event: Lambda.APIGatewayEvent, context: Lambda.Context) => {
       this.logger.debug(`Lambda event:\n${JSON.stringify(event, null, 2)}`);
 
