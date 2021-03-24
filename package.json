@@ -17,9 +17,10 @@
   },
   "scripts": {
     "build": "tsc",
-    "clean": "rm -rf dist",
+    "clean": "rm -rf dist && rm -f tsconfig.tsbuildinfo",
     "lint": "eslint src --ext js,ts --max-warnings 0",
     "postbuild": "chmod u+x dist/tools/cli.js",
+    "prepublish": "yarn clean && yarn build && yarn test",
     "prebuild": "rm -rf src/test/gen",
     "pretest": "MODULE_PATH=../.. ts-node src/tools/cli.ts generate-types src/test/api.yml src/test/gen",
     "test": "NODE_PATH=src LOG_LEVEL=${LOG_LEVEL:=error} jest --config src/test/jest.config.js"
