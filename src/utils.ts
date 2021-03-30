@@ -1,4 +1,5 @@
-import Ajv, {ErrorObject} from 'ajv';
+import Ajv, {ErrorObject, Options as AjvOptions} from 'ajv';
+import addFormats from 'ajv-formats'
 import {OpenAPIV3} from 'openapi-types';
 
 export type OneOrMany<T> = T | Array<T>;
@@ -65,10 +66,11 @@ export function getParametersSchema(
 export function matchSchema<T, U>(
     source: Readonly<T>,
     schema: OpenAPIV3.SchemaObject,
-    errors: ErrorObject[]): U {
+    errors: ErrorObject[],
+    ajvOptions?: AjvOptions): U {
   // Ajv mutates the passed object so we pass a copy
   const result = cloneObject(source);
-  const validate = new Ajv({coerceTypes: 'array'}).compile(schema);
+  const validate = addFormats(new Ajv({...ajvOptions, coerceTypes: 'array'})).compile(schema);
 
   validate(result);
 

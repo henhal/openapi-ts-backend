@@ -137,7 +137,8 @@ export class OpenApi<T> {
     return matchSchema<StringParams, Params>(
         rawParams,
         getParametersSchema(getParameterMap(operation, type)),
-        errors);
+        errors,
+        this.ajvOptions);
   }
 
   protected parseRequest(apiContext: OpenAPI.Context): Request {
