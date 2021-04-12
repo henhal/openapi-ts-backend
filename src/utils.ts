@@ -62,15 +62,19 @@ export function getParametersSchema(
   return result as OpenAPIV3.SchemaObject;
 }
 
+export function getAjv(ajvOptions?: AjvOptions) {
+  return addFormats(new Ajv(ajvOptions));
+}
+
 // Note that errors is an out parameter
 export function matchSchema<T, U>(
+    ajv: Ajv,
     source: Readonly<T>,
     schema: OpenAPIV3.SchemaObject,
-    errors: ErrorObject[],
-    ajvOptions?: AjvOptions): U {
+    errors: ErrorObject[]): U {
   // Ajv mutates the passed object so we pass a copy
   const result = cloneObject(source);
-  const validate = addFormats(new Ajv({...ajvOptions, coerceTypes: 'array'})).compile(schema);
+  const validate = ajv.compile(schema);
 
   validate(result);
 

@@ -22,6 +22,7 @@ import {
 import {
   formatArray,
   formatValidationError,
+  getAjv,
   getParameterMap,
   getParametersSchema,
   inRange,
@@ -71,6 +72,14 @@ function isRawRequest(req: any): req is RawRequest {
       req.headers && typeof req.headers === 'object';
 }
 
+export interface Options<T> {
+  errorHandler?: ErrorHandler<T>;
+  logger?: Logger | null;
+  responseValidationStrategy?: FailStrategy;
+  responseBodyTrimming?: ResponseTrimming;
+  ajvOptions?: Ajv.Options;
+}
+
 /**
  * A HTTP API using an OpenAPI definition.
  * This uses the openapi-backend module to parse, route and validate requests created from events.
@@ -81,6 +90,7 @@ function isRawRequest(req: any): req is RawRequest {
 export class OpenApi<T> {
   private interceptors: Interceptor<T>[] = [];
   private apiPromises: Promise<OpenAPI.OpenAPIBackend>[] = [];
+  private readonly paramValidator: Ajv.default;
 
   readonly errorHandler: ErrorHandler<T>;
   readonly logger: Logger;
@@ -102,18 +112,17 @@ export class OpenApi<T> {
         responseValidationStrategy = 'warn',
         responseBodyTrimming = 'failing',
         ajvOptions
-      }: {
-        errorHandler?: ErrorHandler<T>;
-        logger?: Logger | null;
-        responseValidationStrategy?: FailStrategy;
-        responseBodyTrimming?: ResponseTrimming;
-        ajvOptions?: Ajv.Options;
-      } = {}) {
+      }: Options<T> = {}) {
     this.errorHandler = errorHandler;
     this.logger = logger || noLogger;
     this.responseValidationStrategy = responseValidationStrategy;
     this.responseBodyTrimming = responseBodyTrimming;
     this.ajvOptions = ajvOptions;
+    this.paramValidator = getAjv({
+      ...this.ajvOptions,
+      coerceTypes: 'array',
+      strict: false
+    });
   }
 
   private getApis(): Promise<Array<OpenAPI.OpenAPIBackend>> {
@@ -135,10 +144,10 @@ export class OpenApi<T> {
   protected parseParams(rawParams: StringParams, operation: OpenAPI.Operation, type: ParameterType, errors: Ajv.ErrorObject[]): Params {
     // This is mostly used to coerce types, which openapi-backend does internally but then throws away
     return matchSchema<StringParams, Params>(
+        this.paramValidator,
         rawParams,
         getParametersSchema(getParameterMap(operation, type)),
-        errors,
-        this.ajvOptions);
+        errors);
   }
 
   protected parseRequest(apiContext: OpenAPI.Context): Request {
