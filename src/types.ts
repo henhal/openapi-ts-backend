@@ -1,10 +1,24 @@
 import * as OpenAPI from "openapi-backend";
 
-import {OneOrMany} from './utils';
+import {findKey, OneOrMany} from './utils';
 import {OpenApi} from './openapi';
 import {OpenAPIV3} from 'openapi-types';
 
 export type Params<K extends string = string, V = OneOrMany<string | number | boolean | undefined>> = Record<K, V>;
+
+export namespace Params {
+  export function getValue<K extends string, V>(obj: Params<K, OneOrMany<V>>, key: string): V | undefined {
+    const v = findKey(obj, key);
+
+    return Array.isArray(v) ? v[0] : v;
+  }
+
+  export function getValues<K extends string, V>(obj: Params<K, OneOrMany<V>>, key: string): V[] | undefined {
+    const v = findKey(obj, key);
+
+    return Array.isArray(v) ? v : v != null ? [v] : undefined;
+  }
+}
 
 export type StringParams = Params<string, OneOrMany<string>>;
 

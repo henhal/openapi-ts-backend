@@ -39,14 +39,22 @@ export type LambdaRequestParams<T = any> = RequestParams<LambdaSource & T>;
  */
 export class LambdaOpenApi<T> extends OpenApi<LambdaSource & T> {
   protected fromLambdaEvent(event: Lambda.APIGatewayEvent): RawRequest {
+    // TODO it seems Lambda will always produce both single value and multi value headers and query params.
+    //  What do we want, really? Always array, and change the type from OneOrMany to just many?
+    //  Or promote single value if array of one element?
+    //  Perhaps doesn't matter if we provide a util for getting the primary value.
+
     return {
       method: event.httpMethod,
       path: event.path,
-      query: trimRecord(event.queryStringParameters || {}),
+      query: trimRecord({
+        ...event.multiValueQueryStringParameters,
+        ...event.queryStringParameters
+      }),
       headers: trimRecord({
-        ...event.headers,
-        ...event.multiValueHeaders
-      }), // TODO could headers and MVH contain same keys, and should we then merge?
+        ...event.multiValueHeaders,
+        ...event.headers
+      }),
       // //params: trimRecord(event.pathParameters || {}),
       body: parseJson(event.body),
     };

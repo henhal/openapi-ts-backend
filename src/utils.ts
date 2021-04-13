@@ -1,6 +1,7 @@
 import Ajv, {ErrorObject, Options as AjvOptions} from 'ajv';
 import addFormats from 'ajv-formats'
 import {OpenAPIV3} from 'openapi-types';
+import {Params} from './types';
 
 export type OneOrMany<T> = T | Array<T>;
 
@@ -121,4 +122,14 @@ export function oneOrMany<T, U>(func: (value: T) => U): (value: OneOrMany<T>) =>
  */
 export function inRange(min: number, max: number): (value: number) => boolean {
   return value => value >= min && value < max;
+}
+
+export function findKey<K extends string, V>(obj: Params<K, OneOrMany<V>>, key: string): OneOrMany<V> | undefined {
+  key = key.toLowerCase();
+
+  for (const [k, v] of Object.entries(obj)) {
+    if (k.toLowerCase() === key) {
+      return v as OneOrMany<V>;
+    }
+  }
 }
