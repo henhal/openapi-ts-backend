@@ -40,7 +40,7 @@ export type ResponseHeaders<OperationId extends keyof operations> =
 `;
 
 export const operations = `
-import {RequestHandler, Params, Request, Response} from '${MODULE_PATH}';
+import {OperationParams, Params, Request, RequestHandler, Response} from '${MODULE_PATH}';
 import {operations} from './spec';
 import {RequestBody, RequestHeaders, RequestPathParams, RequestQuery, ResponseBody, ResponseHeaders} from './requests';
 
@@ -54,12 +54,12 @@ export type OperationResponse<OperationId extends keyof operations> = Response<
     ResponseBody<OperationId>,
     Params & ResponseHeaders<OperationId>>;
 
-export type OperationHandler<T, OperationId extends keyof operations> = RequestHandler<T,
+export type OperationHandler<T, OperationId extends keyof operations> = RequestHandler<OperationParams<T>,
     OperationRequest<OperationId>,
     OperationResponse<OperationId>>;
     
 export interface OperationHandlers<T>
-    extends Record<string, RequestHandler<T, Request<any, any, any, any>, Response<any, any>>> {
+    extends Record<string, RequestHandler<OperationParams<T>, Request<any, any, any, any>, Response<any, any>>> {
 $OPERATIONS
 }   
 `;

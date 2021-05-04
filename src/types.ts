@@ -158,12 +158,12 @@ export type OperationParams<T = unknown> = RequestParams<T> & {
  * @async
  * @returns Response body or nothing
  */
-export type RequestHandler<T,
+export type RequestHandler<P = unknown,
     Req extends Request = Request,
     Res extends Response = Response> = (
         req: Req,
         res: Res,
-        params: OperationParams<T>) => Awaitable<Res['body'] | void>;
+        params: P) => Awaitable<Res['body'] | void>;
 
 /**
  * A security requirement to be fulfilled by an authorizer
@@ -211,7 +211,7 @@ export type Authorizer<T, R = unknown> = (
  */
 export type RegistrationParams<T> = {
   definition: OpenAPI.Document | string;
-  operations: Record<string, RequestHandler<T>>;
+  operations: Record<string, RequestHandler<OperationParams<T>>>;
   authorizers?: Record<string, Authorizer<T>>;
   path?: string;
 };

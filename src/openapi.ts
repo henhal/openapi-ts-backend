@@ -130,8 +130,8 @@ export class OpenApi<T> {
   }
 
   private async createApi(apiOptions: OpenAPI.Options,
-                               operations: Record<string, RequestHandler<T>>,
-                               authorizers: Record<string, Authorizer<T>> = {}) {
+                          operations: Record<string, RequestHandler<OperationParams<T>>>,
+                          authorizers: Record<string, Authorizer<T>> = {}) {
     const api = await new OpenAPI.OpenAPIBackend(apiOptions).init();
 
     for (const [id, handler] of Object.entries(operations)) {
@@ -141,7 +141,10 @@ export class OpenApi<T> {
     return api;
   }
 
-  protected parseParams(rawParams: StringParams, operation: OpenAPI.Operation, type: ParameterType, errors: Ajv.ErrorObject[]): Params {
+  protected parseParams(rawParams: StringParams,
+                        operation: OpenAPI.Operation,
+                        type: ParameterType,
+                        errors: Ajv.ErrorObject[]): Params {
     // This is mostly used to coerce types, which openapi-backend does internally but then throws away
     return matchSchema<StringParams, Params>(
         this.paramValidator,
@@ -238,7 +241,7 @@ export class OpenApi<T> {
   }
 
   protected createHandler(
-      operationHandler: RequestHandler<T>,
+      operationHandler: RequestHandler<OperationParams<T>>,
       operationId: string,
       authorizers: Record<string, Authorizer<T>>): OpenApiHandler<T, void> {
     return async (apiContext, {res, params}) => {
