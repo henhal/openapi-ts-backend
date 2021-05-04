@@ -69,5 +69,8 @@
   },
   "peerDependencies": {
     "typescript": ">=3"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
