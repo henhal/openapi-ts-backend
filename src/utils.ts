@@ -1,9 +1,7 @@
 import Ajv, {ErrorObject, Options as AjvOptions} from 'ajv';
 import addFormats from 'ajv-formats'
 import {OpenAPIV3} from 'openapi-types';
-import {Params} from './types';
-
-export type OneOrMany<T> = T | Array<T>;
+import {OneOrMany} from '@openapi-ts/request-types';
 
 // The "not a function restriction" solves TS2349 and enables using typeof === 'function' to determine if T is callable.
 // eslint-disable-next-line @typescript-eslint/ban-types
@@ -122,14 +120,4 @@ export function oneOrMany<T, U>(func: (value: T) => U): (value: OneOrMany<T>) =>
  */
 export function inRange(min: number, max: number): (value: number) => boolean {
   return value => value >= min && value < max;
-}
-
-export function findKey<K extends string, V>(obj: Params<K, OneOrMany<V>>, key: string): OneOrMany<V> | undefined {
-  key = key.toLowerCase();
-
-  for (const [k, v] of Object.entries(obj)) {
-    if (k.toLowerCase() === key) {
-      return v as OneOrMany<V>;
-    }
-  }
 }

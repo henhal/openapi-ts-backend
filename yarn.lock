@@ -552,6 +552,11 @@
     "@nodelib/fs.scandir" "2.1.4"
     fastq "^1.6.0"
 
+"@openapi-ts/request-types@^1.0.3":
+  version "1.0.3"
+  resolved "https://registry.yarnpkg.com/@openapi-ts/request-types/-/request-types-1.0.3.tgz#7d550851a7199cf12193784597973d6d78cc03c3"
+  integrity sha512-HzzsD7Jz7EPGHJOr9PM+1739/AxK/S1h5aTpfXEP9wLcSWFZoXPzOo1Tr76+0zK+Xv1O/YRLBJNq6p2jguhm4Q==
+
 "@sinonjs/commons@^1.7.0":
   version "1.8.2"
   resolved "https://registry.yarnpkg.com/@sinonjs/commons/-/commons-1.8.2.tgz#858f5c4b48d80778fde4b9d541f27edc0d56488b"
