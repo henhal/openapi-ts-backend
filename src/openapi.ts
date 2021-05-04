@@ -402,10 +402,11 @@ export class OpenApi<T> {
    * If an error was thrown, the error handler function is invoked to convert it to a response.
    *
    * @param req Request
-   * @param data Custom data
+   * @param args Custom data
    * @returns Response
    */
-  async handleRequest(req: RawRequest, ...[data]: T[]): Promise<RawResponse> {
+  async handleRequest(req: RawRequest, ...args: T[]): Promise<RawResponse> {
+    const [data] = args;
     const params: RequestParams<T> = {api: this, data};
     const id = `${req.method?.toUpperCase()} ${req.path}`;
     this.logger.info(`->${id}`);
