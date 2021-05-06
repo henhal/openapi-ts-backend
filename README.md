@@ -1,6 +1,8 @@
 # openapi-ts-backend
 Enables easy implementions of OpenAPI REST APIs in TypeScript with full typings of schemas and operations.
 
+> Note: This module is deprecated and replaced by https://www.npmjs.com/package/@openapi-ts/backend which separates the core module from service bindings for AWS Lambda and Express.
+
 ## Introduction
 This module allows for simple REST API implementation in TypeScript using OpenAPI 3.0 specifications. It can be easily integrated with any HTTP framework such as Express, AWS Lambda etc. 
 A connector for AWS Lambda is provided within this module.
