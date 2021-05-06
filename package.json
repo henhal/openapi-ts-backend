@@ -1,6 +1,6 @@
 {
   "name": "@openapi-ts/backend",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "description": "",
   "bin": {
     "openapi-ts-backend": "dist/tools/cli.js"
