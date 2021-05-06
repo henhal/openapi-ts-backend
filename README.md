@@ -1,9 +1,12 @@
-# openapi-ts-backend
+# @openapi-ts/backend
 Enables easy implementions of OpenAPI REST APIs in TypeScript with full typings of schemas and operations.
+
+> NOTE: This is version 2 of the openapi-ts-backend module, in which the single module from v1 was restructured into several modules, and service integrations for AWS Lambda and Express moved to separate modules. 
+Version 2 is not backwards compatible with version 1, which is available at https://www.npmjs.com/package/openapi-ts-backend
 
 ## Introduction
 This module allows for simple REST API implementation in TypeScript using OpenAPI 3.0 specifications. It can be easily integrated with any HTTP framework such as Express, AWS Lambda etc. 
-A connector for AWS Lambda is provided within this module.
+Connectors for [AWS Lambda](https://www.npmjs.com/package/%40openapi-ts%2Faws-lambda) and [Express](https://www.npmjs.com/package/%40openapi-ts%2Fexpress) are provided as add-on modules.
 
 The module uses the excellent https://www.npmjs.com/package/openapi-backend module for routing and validation, and adds some useful features on top:
 
@@ -18,12 +21,26 @@ The module uses the excellent https://www.npmjs.com/package/openapi-backend modu
 ## Installation
 
 ```
-$ npm install openapi-ts-backend
+$ npm install @openapi-ts/backend
+```
+
+Note however that the service add-ons exports all members from this module, so if you want to use the bindings for e.g. AWS Lambda or Express, you only have to install a single module:
+
+For AWS Lambda:
+```
+$ npm install @openapi-ts/aws-lambda
+```
+
+For Express:
+```
+$ npm install @openapi-ts/express
 ```
 
 ## Usage
 
 ### Simple Hello World API example:
+
+This example creates an API without service bindings to AWS Lambda or other services:
 
 Create API:
 ```
@@ -130,16 +147,21 @@ To generate TypeScript types for all requests and operation handlers, an executa
 ```
 $ npx openapi-ts-backend generate-types greet-api.yml src/gen/greet-api
 ...
+Using TypeScript v4.2.3
 Types written to src/gen/greet-api
 ```
 
-Now, types for all schemas and operations are generated in `src/gen/greet-api`, and a backend service can be set up type safely. 
+Now, types for all schemas and operations are generated in `src/gen/greet-api`, and a backend service can be set up type safely.
+
+> Note 1: Typically it's convenient to add type generation as part of your tool chain for building and/or deploying your code, and not put the generated types into source control. However, if you do want to use the generated request types stand-alone without any bindings to operation handlers used by the `OpenApi` class, it's possible by also installing the core requests types used by the generated code using `npm install @openapi-ts/request-types` and invoking the code generator with the `--exclude-handlers` option. 
+
+> Note 2: The code generator uses `typescript` as a peer dependency so make sure it's available as a devDependency from your module or as a globally installed module.
 
 ### Example AWS Lambda API with typed operations
 
 `src/api.ts`
 ```
-import {LambdaOpenApi} from 'openapi-ts-backend';
+import {LambdaOpenApi} from '@openapi-ts/aws-lambda';
 import * as GreetApi from './gen/greet-api';
 
 const operations: GreetApi.OperationHandlers<LambdaSource> = {

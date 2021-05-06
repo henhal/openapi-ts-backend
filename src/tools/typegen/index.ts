@@ -25,7 +25,10 @@ async function createSpecTypes(specPath: string, outputDir: string) {
   return write(outputDir, 'spec.ts', ts);
 }
 
-export default async function main(program: string, command: string, [inputFile, outputDir]: string[]): Promise<void> {
+export default async function main(program: string, command: string, args: string[]): Promise<void> {
+  const excludeHandlers = args.includes('--exclude-handlers');
+  const [inputFile, outputDir] = args.slice(-2);
+
   if (!inputFile || !outputDir) {
     throw new Error(`Usage: ${program} ${command} <path to OpenAPI document> <output directory>`);
   }
@@ -36,12 +39,26 @@ export default async function main(program: string, command: string, [inputFile,
 
   const specTypesPath = await createSpecTypes(inputFile, outputDir);
   const operationIds = getApiOperationIds(specTypesPath);
+  const modules = ['requests'];
+
+  if (!excludeHandlers) {
+    modules.push('handlers');
+  }
 
   write(outputDir, `utils.ts`, templates.utils);
-  write(outputDir, `requests.ts`, templates.requests);
-  write(outputDir, `operations.ts`, templates.operations.replace('$OPERATIONS',
-      operationIds.map(id => `  ${id}: OperationHandler<T, '${id}'>;`).join('\n')));
-  write(outputDir, `index.ts`, templates.index);
+
+  if (modules.includes('requests')) {
+    write(outputDir, `requests.ts`, templates.requests);
+  }
+
+  if (modules.includes('handlers')) {
+    write(outputDir, `handlers.ts`, templates.handlers.replace('$OPERATIONS',
+        operationIds.map(id => `  ${id}: OperationHandler<T, '${id}'>;`).join('\n')));
+  }
+
+  write(outputDir, `index.ts`, templates.index + modules
+      .map(module => `export * from './${module}';`)
+      .join('\n'));
 
   console.log(`Types written to ${outputDir}`);
 }

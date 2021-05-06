@@ -15,6 +15,7 @@ export type EmptyObject = Record<never, never>;
 `;
 
 export const requests = `
+import {Params, Request, Response} from '@openapi-ts/request-types';
 import {operations} from './spec';
 import {EmptyObject, Property, ValueOf} from './utils';
 
@@ -37,12 +38,6 @@ export type ResponseBody<OperationId extends keyof operations> =
 
 export type ResponseHeaders<OperationId extends keyof operations> =
     Property<ValueOf<Property<operations[OperationId], 'responses', EmptyObject>>, 'headers'>;
-`;
-
-export const operations = `
-import {RequestHandler, Params, Request, Response} from '${MODULE_PATH}';
-import {operations} from './spec';
-import {RequestBody, RequestHeaders, RequestPathParams, RequestQuery, ResponseBody, ResponseHeaders} from './requests';
 
 export type OperationRequest<OperationId extends keyof operations> = Request<
     RequestBody<OperationId>,
@@ -53,13 +48,20 @@ export type OperationRequest<OperationId extends keyof operations> = Request<
 export type OperationResponse<OperationId extends keyof operations> = Response<
     ResponseBody<OperationId>,
     Params & ResponseHeaders<OperationId>>;
+`;
 
-export type OperationHandler<T, OperationId extends keyof operations> = RequestHandler<T,
+export const handlers = `
+import {Request, Response} from '@openapi-ts/request-types';
+import {OperationParams, RequestHandler} from '${MODULE_PATH}';
+import {operations} from './spec';
+import {OperationRequest, OperationResponse} from './requests';
+
+export type OperationHandler<T, OperationId extends keyof operations> = RequestHandler<OperationParams<T>,
     OperationRequest<OperationId>,
     OperationResponse<OperationId>>;
     
 export interface OperationHandlers<T>
-    extends Record<string, RequestHandler<T, Request<any, any, any, any>, Response<any, any>>> {
+    extends Record<string, RequestHandler<OperationParams<T>, Request<any, any, any, any>, Response<any, any>>> {
 $OPERATIONS
 }   
 `;
@@ -72,6 +74,4 @@ export type Schemas = Property<components, 'schemas', EmptyObject>;
 export type Responses = Property<components, 'responses', EmptyObject>;
 export type Operations = operations;
 
-export * from './requests';
-export * from './operations';
 `;

@@ -1,6 +1,6 @@
 {
-  "name": "openapi-ts-backend",
-  "version": "1.0.7",
+  "name": "@openapi-ts/backend",
+  "version": "2.0.2",
   "description": "",
   "bin": {
     "openapi-ts-backend": "dist/tools/cli.js"
@@ -46,15 +46,16 @@
     "lambda"
   ],
   "dependencies": {
+    "@openapi-ts/request-types": "^1.0.3",
     "ajv": "^7.1.1",
     "ajv-formats": "^2.0.1",
     "js-yaml": "^4.0.0",
+    "loglevel": "^1.7.1",
     "openapi-backend": "^3.9.0",
     "openapi-types": "^7.2.3",
     "openapi-typescript": "^3.0.1"
   },
   "devDependencies": {
-    "@types/aws-lambda": "^8.10.72",
     "@types/jest": "^26.0.20",
     "@types/js-yaml": "^4.0.0",
     "@types/node": "^14.14.31",
@@ -68,5 +69,8 @@
   },
   "peerDependencies": {
     "typescript": ">=3"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
