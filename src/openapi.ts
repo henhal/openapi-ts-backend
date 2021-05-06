@@ -1,6 +1,7 @@
 import * as Ajv from 'ajv';
 import * as OpenAPI from 'openapi-backend';
 import {ValidationContext} from 'openapi-backend';
+import {OpenAPIV3} from 'openapi-types';
 
 import * as Errors from './errors';
 import {
@@ -31,8 +32,7 @@ import {
   oneOrMany,
   ParameterType,
 } from './utils';
-import {createLogger, getLogLevels, Logger} from './logger';
-import {OpenAPIV3} from 'openapi-types';
+import {createLogger, Logger, LogLevel} from './logger';
 
 type FailStrategy = 'warn' | 'throw';
 type ResponseTrimming = 'none' | 'failing' | 'all';
@@ -45,14 +45,7 @@ type HandlerData<P> = {
 // Note: Implementation of OpenAPI.Handler - these arguments match the call to api.handleRequest
 type OpenApiHandler<P, R> = (apiContext: OpenAPI.Context, data: HandlerData<P>) => Awaitable<R>;
 
-const LOG_LEVELS = getLogLevels(process.env.LOG_LEVEL ?? 'info');
-
-// eslint-disable-next-line @typescript-eslint/no-empty-function
-const nop = () => {};
-const consoleLogger: Logger = createLogger(level => LOG_LEVELS.includes(level) ?
-    console[level].bind(null, `${level}:`) :
-    nop);
-const noLogger: Logger = createLogger(() => nop);
+const {LOG_LEVEL = 'info'} = process.env;
 
 const defaultHandlers: Partial<OpenAPI.Options['handlers']> = Object.freeze({
   validationFail(apiContext) {
@@ -101,20 +94,22 @@ export class OpenApi<T> {
   /**
    * Constructor
    * @param params Parameters
-   * @param [params.apiOptions] Options passed to the OpenAPIBackend instance.
    * @param [params.errorHandler] A function creating a response from an error thrown by the API.
    * @param [params.logger] A logger, or null to suppress all logging
+   * @param [params.responseValidationStrategy] How to handle validation errors on responses
+   * @param [params.responseBodyTrimming] What response body trimming to perform
+   * @param [params.ajvOptions] Custom AJV options
    */
   constructor(
       {
         errorHandler = Errors.defaultErrorHandler,
-        logger = consoleLogger,
+        logger = createLogger(LOG_LEVEL as LogLevel),
         responseValidationStrategy = 'warn',
         responseBodyTrimming = 'failing',
         ajvOptions
       }: Options<T> = {}) {
     this.errorHandler = errorHandler;
-    this.logger = logger || noLogger;
+    this.logger = logger || createLogger('silent'); // if logger is null, create silent logger
     this.responseValidationStrategy = responseValidationStrategy;
     this.responseBodyTrimming = responseBodyTrimming;
     this.ajvOptions = ajvOptions;
