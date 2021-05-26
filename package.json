@@ -46,7 +46,7 @@
     "lambda"
   ],
   "dependencies": {
-    "@openapi-ts/request-types": "^1.0.3",
+    "@openapi-ts/request-types": "^1.0.5",
     "ajv": "^7.1.1",
     "ajv-formats": "^2.0.1",
     "js-yaml": "^4.0.0",
