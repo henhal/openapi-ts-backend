@@ -211,7 +211,7 @@ export class OpenApi<T> {
             scheme: definition.components?.securitySchemes?.[name] as OpenAPIV3.SecuritySchemeObject,
             parameters: {scopes}
           });
-        } catch (error) {
+        } catch (error: any) {
           authorized = false;
           errors.push(error);
         }
@@ -411,7 +411,7 @@ export class OpenApi<T> {
 
     try {
       await this.routeRequest(req, res, params);
-    } catch (err) {
+    } catch (err: any) {
       this.logger.warn(`Error: ${id}: "${err.name}: ${err.message}"`);
 
       await this.errorHandler(req, res, params, err);

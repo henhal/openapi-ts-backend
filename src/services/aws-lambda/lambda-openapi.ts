@@ -18,27 +18,41 @@ function trimRecord<K extends string, V>(obj: Record<K, V | undefined | null>): 
   return Object.fromEntries(Object.entries(obj).filter(([, v]) => v != null)) as Record<K, V>;
 }
 
+export type LambdaHttpEvent = Pick<Lambda.APIGatewayEvent,
+    'httpMethod' |
+    'path' |
+    'multiValueHeaders' |
+    'headers' |
+    'queryStringParameters' |
+    'multiValueQueryStringParameters' |
+    'body'>;
+
+export type LambdaHttpResult = Pick<Lambda.APIGatewayProxyResult,
+    'statusCode' | 'headers' | 'multiValueHeaders' | 'body'>;
+
 /**
  * AWS Lambda specific request parameters
  * @property event    The Lambda event
  * @property context  The Lambda context
  */
-export type LambdaSource = {
+export type LambdaSource<Event extends LambdaHttpEvent = Lambda.APIGatewayEvent> = {
   lambda: {
-    event: Lambda.APIGatewayEvent;
+    event: Event;
     context: Lambda.Context;
   };
 };
 
-export type LambdaOperationParams<T = any> = OperationParams<LambdaSource & T>;
+export type LambdaContext<T = unknown, Event extends LambdaHttpEvent = Lambda.APIGatewayEvent> = LambdaSource<Event> & T;
 
-export type LambdaRequestParams<T = any> = RequestParams<LambdaSource & T>;
+export type LambdaOperationParams<T = any, Event extends LambdaHttpEvent = Lambda.APIGatewayEvent> = OperationParams<LambdaContext<T, Event>>;
+
+export type LambdaRequestParams<T = any, Event extends LambdaHttpEvent = Lambda.APIGatewayEvent> = RequestParams<LambdaContext<T, Event>>;
 
 /**
  * A HTTP API using an OpenAPI definition and implemented using AWS Lambda.
  */
-export class LambdaOpenApi<T> extends OpenApi<LambdaSource & T> {
-  protected fromLambdaEvent(event: Lambda.APIGatewayEvent): RawRequest {
+export class LambdaOpenApi<T, Event extends LambdaHttpEvent = Lambda.APIGatewayEvent> extends OpenApi<LambdaContext<T, Event>> {
+  protected fromLambdaEvent(event: LambdaHttpEvent): RawRequest {
     // TODO it seems Lambda will always produce both single value and multi value headers and query params.
     //  What do we want, really? Always array, and change the type from OneOrMany to just many?
     //  Or promote single value if array of one element?
@@ -60,7 +74,7 @@ export class LambdaOpenApi<T> extends OpenApi<LambdaSource & T> {
     };
   }
 
-  protected toLambdaResult(res: RawResponse): Lambda.APIGatewayProxyResult {
+  protected toLambdaResult(res: RawResponse): LambdaHttpResult {
     const statusCode = res.statusCode;
     const headers: Record<string, string> = {};
     const multiValueHeaders: Record<string, string[]> = {};
@@ -92,8 +106,8 @@ export class LambdaOpenApi<T> extends OpenApi<LambdaSource & T> {
    *
    * @return A lambda event handler function
    */
-  eventHandler(...[data]: T extends Record<string, any> ? T[] : []): Lambda.APIGatewayProxyHandler {
-    return async (event: Lambda.APIGatewayEvent, context: Lambda.Context) => {
+  eventHandler(...[data]: T extends Record<string, any> ? T[] : []): Lambda.Handler<Event, LambdaHttpResult> {
+    return async (event, context) => {
       this.logger.debug(`Lambda event:\n${JSON.stringify(event, null, 2)}`);
 
       const res = await this.handleRequest(
