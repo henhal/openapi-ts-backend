@@ -211,7 +211,9 @@ export class OpenApi<T> {
           });
         } catch (error) {
           authorized = false;
-          errors.push(error);
+
+          const theError = error instanceof Error ? error : new Error('Unknown error', {cause: error})
+          errors.push(theError);
         }
       }
 
@@ -411,9 +413,10 @@ export class OpenApi<T> {
     try {
       await this.routeRequest(req, res, params);
     } catch (err) {
-      this.logger.warn(`Error: ${id}: "${err.name}: ${err.message}"`);
+        const theError = err instanceof Error ? err : new Error('Unknown error', {cause: err})
+        this.logger.warn(`Error: ${id}: "${theError.name}: ${theError.message}"`);
 
-      await this.errorHandler(req, res, params, err);
+        await this.errorHandler(req, res, params, theError);
     }
 
     res.statusCode = res.statusCode ?? 500;
