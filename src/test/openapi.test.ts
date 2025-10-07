@@ -30,7 +30,7 @@ const operations: OperationHandlers<unknown> = {
       cookies: getTypeMap(req.cookies),
     }
   },
-  deletePerson: req => {
+  deletePerson: () => {
     return;
   }
 };
