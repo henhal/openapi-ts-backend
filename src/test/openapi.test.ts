@@ -144,6 +144,6 @@ describe('API tests', () => {
     expect(res.statusCode).toEqual(400);
     const errors = (res.body as any)?.data?.errors;
     expect(errors).toBeDefined();
-    expect(errors[0].message).toContain('should be number');
+    expect(errors[0].message).toContain('/path/foo must be number');
   });
 });
