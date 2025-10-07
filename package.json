@@ -1,5 +1,5 @@
 {
-  "name": "@openapi-ts/backend",
+  "name": "@a-labs-io/openapi-ts-backend",
   "version": "2.0.5",
   "description": "",
   "bin": {
@@ -7,13 +7,10 @@
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "homepage": "https://github.com/henhal/openapi-ts-backend#readme",
-  "bugs": {
-    "url": "https://github.com/henhal/openapi-ts-backend/issues"
-  },
+  "homepage": "https://github.com/a-labs-io/openapi-ts-backend#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/henhal/openapi-ts-backend"
+    "url": "https://github.com/a-labs-io/openapi-ts-backend"
   },
   "scripts": {
     "build": "tsc",
@@ -25,7 +22,7 @@
     "pretest": "MODULE_PATH=../.. ts-node src/tools/cli.ts generate-types src/test/api.yml src/test/gen",
     "test": "NODE_PATH=src LOG_LEVEL=${LOG_LEVEL:=error} jest --config src/test/jest.config.js"
   },
-  "author": "henrik.hall2@gmail.com",
+  "author": "lucas.romero@a-labs.io",
   "files": [
     "dist/"
   ],
