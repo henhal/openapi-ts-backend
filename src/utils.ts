@@ -12,7 +12,7 @@ export function resolve<T>(resolvable: Resolvable<T>): T {
 }
 
 export function formatValidationError(error: ErrorObject): string {
-  return `At '${error.dataPath}': ${Object.entries(error.params)
+  return `At '${error.instancePath}': ${Object.entries(error.params)
       .map(([k, v]) => `${k}: ${JSON.stringify(v)}`)
       .join(', ')}`;
 }
