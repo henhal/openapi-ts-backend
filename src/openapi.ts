@@ -332,7 +332,7 @@ export class OpenApi<T> {
       customizeAjv: (ajv, ajvOpts, validationContext) => {
         if (validationContext === ValidationContext.Response) {
           // Remove additional properties on response body only
-          ajv._opts.removeAdditional = this.responseBodyTrimming === 'none' ? false : this.responseBodyTrimming;
+          ajv.opts.removeAdditional = this.responseBodyTrimming === 'none' ? false : this.responseBodyTrimming;
         }
         // Invoke custom function as well if applicable
         return ajv;
