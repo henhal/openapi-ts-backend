@@ -1,7 +1,5 @@
-import {OpenApi} from '../openapi';
-
-import {OperationHandlers} from './gen';
-import {HttpError} from '../errors';
+import {HttpError, OpenApi} from "@openapi-ts/backend";
+import { OperationHandlers} from './gen';
 
 function greet(title: string, name: string): string {
   return `Hello, ${title}${title ? ' ' : ''}${name}`;
@@ -38,7 +36,7 @@ const operations: OperationHandlers<unknown> = {
 describe('API tests', () => {
   const api = new OpenApi()
       .register({
-        definition: './src/test/api.yml',
+        definition: './api.yml',
         operations,
         authorizers: {
           AccessToken: req => {

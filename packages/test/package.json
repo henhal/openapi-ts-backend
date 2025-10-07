@@ -1,0 +1,14 @@
+{
+  "name": "test",
+  "scripts": {
+    "pretest": "npm -w ../lib run build && openapi-ts-backend generate-types api.yml src/gen",
+    "test": "LOG_LEVEL=${LOG_LEVEL:=error} jest"
+  },
+  "devDependencies": {
+    "@openapi-ts/cli": "*",
+    "@openapi-ts/backend": "*",
+    "@types/jest": "^30.0.0",
+    "jest": "^30.2.0",
+    "ts-jest": "^29.4.4"
+  }
+}

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import typegen from './typegen';
+import typegen from './typegen/typegen';
 
 type Handler = (program: string, command: string, args: string[]) => Promise<void>;
 
