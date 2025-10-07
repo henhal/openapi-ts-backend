@@ -4,7 +4,12 @@ export const utils = `
 /**
  * Get property K in T if it exists, otherwise D.
  */
-export type Property<T, K extends keyof any, D = unknown> = (K extends keyof T ? T[K] : D);
+export type Property<T, K extends keyof any, D = unknown> =
+  K extends keyof T
+    ? ([T[K]] extends [never | undefined]
+      ? D
+      : T[K])
+    : D;
 
 /**
  *  Like keyof but values. Get all values of T if it is an object, otherwise D.
