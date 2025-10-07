@@ -1,7 +1,7 @@
 import * as Ajv from 'ajv';
 import * as OpenAPI from 'openapi-backend';
 import {ValidationContext} from 'openapi-backend';
-import {OpenAPIV3} from 'openapi-types';
+import {OpenAPIV3_1} from 'openapi-types';
 
 import * as Errors from './errors';
 import {
@@ -206,7 +206,7 @@ export class OpenApi<T> {
         try {
           results[name] = await authorizers[name](req, res, operationParams, {
             name,
-            scheme: definition.components?.securitySchemes?.[name] as OpenAPIV3.SecuritySchemeObject,
+            scheme: definition.components?.securitySchemes?.[name] as OpenAPIV3_1.SecuritySchemeObject,
             parameters: {scopes}
           });
         } catch (error) {
