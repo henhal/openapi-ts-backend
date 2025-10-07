@@ -1,10 +1,7 @@
 {
-  "name": "@a-labs-io/openapi-ts-backend",
+  "name": "openapi-ts-backend",
   "version": "2.0.5",
   "description": "",
-  "bin": {
-    "openapi-ts-backend": "dist/tools/cli.js"
-  },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "homepage": "https://github.com/a-labs-io/openapi-ts-backend#readme",
@@ -13,14 +10,7 @@
     "url": "https://github.com/a-labs-io/openapi-ts-backend"
   },
   "scripts": {
-    "build": "tsc",
-    "clean": "rm -rf dist && rm -f tsconfig.tsbuildinfo",
-    "lint": "eslint src --ext js,ts --max-warnings 0",
-    "postbuild": "chmod u+x dist/tools/cli.js",
-    "prepublish": "yarn clean && yarn build && yarn test",
-    "prebuild": "rm -rf src/test/gen",
-    "pretest": "MODULE_PATH=../.. ts-node src/tools/cli.ts generate-types src/test/api.yml src/test/gen",
-    "test": "NODE_PATH=src LOG_LEVEL=${LOG_LEVEL:=error} jest --config src/test/jest.config.js"
+    "lint": "eslint src --ext js,ts --max-warnings 0"
   },
   "author": "lucas.romero@a-labs.io",
   "files": [
@@ -70,5 +60,6 @@
   },
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "workspaces": ["packages/lib", "packages/cli", "packages/test"]
 }

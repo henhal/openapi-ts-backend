@@ -1,4 +1,4 @@
-const {MODULE_PATH = '@openapi-ts/backend'} = process.env;
+const {MODULE_PATH = '@a-labs-io/openapi-ts-backend'} = process.env;
 
 export const utils = `
 /**

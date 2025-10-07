@@ -1,7 +1,8 @@
-import {OpenApi} from '../openapi';
+// import {OpenApi} from '@a-labs-io/openapi-ts-backend';
+// import {HttpError} from '@a-labs-io/openapi-ts-backend';
 
-import {OperationHandlers} from './gen';
-import {HttpError} from '../errors';
+import { OperationHandlers} from './gen';
+import {HttpError, OpenApi} from "@a-labs-io/openapi-ts-backend";
 
 function greet(title: string, name: string): string {
   return `Hello, ${title}${title ? ' ' : ''}${name}`;

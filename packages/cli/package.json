@@ -1,0 +1,12 @@
+{
+  "name": "@a-labs-io/openapi-ts-backend-cli",
+  "main": "src/cli.ts",
+  "bin": {
+    "openapi-ts-backend": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "postbuild": "chmod u+x dist/cli.js"
+  },
+  "files": ["dist"]
+}

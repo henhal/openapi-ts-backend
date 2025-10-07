@@ -1,0 +1,10 @@
+{
+  "name": "@a-labs-io/openapi-ts-backend",
+  "type": "module",
+  "scripts": {
+    "build": "tsc"
+  },
+  "main": "dist/index.js",
+  "files": ["dist"],
+  "types": "dist/index.d.ts"
+}

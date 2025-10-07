@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "noEmit": true,
+    "module": "CommonJS",
+    "target": "ESNext",
+    "lib": ["ES2022"],
+  },
+}
