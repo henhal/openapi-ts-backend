@@ -7,14 +7,15 @@
   "homepage": "https://github.com/a-labs-io/openapi-ts-backend#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/a-labs-io/openapi-ts-backend"
+    "url": "git+https://github.com/a-labs-io/openapi-ts-backend.git"
   },
   "scripts": {
     "lint": "eslint src --ext js,ts --max-warnings 0"
   },
   "author": "lucas.romero@a-labs.io",
   "files": [
-    "dist/"
+    "dist/",
+    "README.md"
   ],
   "keywords": [
     "openapi",
@@ -33,33 +34,11 @@
     "lambda"
   ],
   "dependencies": {
-    "@openapi-ts/request-types": "^1.0.5",
-    "ajv": "^8.17.1",
-    "ajv-formats": "^3.0.1",
-    "js-yaml": "^4.0.0",
-    "json-schema-to-ts": "^3.1.1",
-    "loglevel": "^1.7.1",
-    "openapi-backend": "^5.15.0",
-    "openapi-types": "^12.1.3",
-    "openapi-typescript": "^7.9.1"
-  },
-  "devDependencies": {
-    "@types/jest": "^30.0.0",
-    "@types/js-yaml": "^4.0.0",
-    "@types/node": "^24.7.0",
-    "@typescript-eslint/eslint-plugin": "^8.45.0",
-    "@typescript-eslint/parser": "^8.45.0",
-    "eslint": "^9.37.0",
-    "jest": "^30.2.0",
-    "ts-jest": "^29.4.4",
-    "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   },
-  "peerDependencies": {
-    "typescript": ">=3"
-  },
-  "publishConfig": {
-    "access": "public"
-  },
-  "workspaces": ["packages/lib", "packages/cli", "packages/test"]
+  "workspaces": [
+    "packages/lib",
+    "packages/cli",
+    "packages/test"
+  ]
 }

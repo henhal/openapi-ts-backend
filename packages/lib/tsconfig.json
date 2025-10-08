@@ -4,7 +4,6 @@
     "rootDir": "./src",
     "outDir": "dist",
     "module": "CommonJS",
-    "target": "ES2022",
     "lib": ["ES2022"],
   },
 }
