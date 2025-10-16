@@ -3,7 +3,5 @@
   "compilerOptions": {
     "rootDir": "./src",
     "noEmit": true,
-    "target": "ESNext",
-    "lib": ["ES2022"],
   },
 }
