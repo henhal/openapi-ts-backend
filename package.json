@@ -1,9 +1,6 @@
 {
   "name": "openapi-ts-backend",
-  "version": "2.0.5",
-  "description": "",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "private": true,
   "homepage": "https://github.com/a-labs-io/openapi-ts-backend#readme",
   "repository": {
     "type": "git",
