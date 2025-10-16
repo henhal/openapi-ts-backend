@@ -1,8 +1,7 @@
 # @openapi-ts/backend
-Enables easy implementions of OpenAPI REST APIs in TypeScript with full typings of schemas and operations.
+> This is a fork of https://github.com/henhal/openapi-ts-backend
 
-> NOTE: This is version 2 of the openapi-ts-backend module, in which the single module from v1 was restructured into several modules, and service integrations for AWS Lambda and Express moved to separate modules. 
-Version 2 is not backwards compatible with version 1, which is available at https://www.npmjs.com/package/openapi-ts-backend
+Enables easy implementions of OpenAPI REST APIs in TypeScript with full typings of schemas and operations.
 
 ## Introduction
 This module allows for simple REST API implementation in TypeScript using OpenAPI 3.0 specifications. It can be easily integrated with any HTTP framework such as Express, AWS Lambda etc. 
@@ -21,17 +20,17 @@ The module uses the excellent https://www.npmjs.com/package/openapi-backend modu
 ## Installation
 
 ```
-$ npm install @openapi-ts/backend
+$ npm install @a-labs-io/openapi-ts-backend-cli @a-labs-io/openapi-ts-backend
 ```
 
 Note however that the service add-ons exports all members from this module, so if you want to use the bindings for e.g. AWS Lambda or Express, you only have to install a single module:
 
-For AWS Lambda:
+For AWS Lambda (not forked, also not sure if compatible):
 ```
 $ npm install @openapi-ts/aws-lambda
 ```
 
-For Express:
+For Express (not forked, also not sure if compatible):
 ```
 $ npm install @openapi-ts/express
 ```
