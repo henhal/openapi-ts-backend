@@ -37,5 +37,8 @@
     "packages/lib",
     "packages/cli",
     "packages/test"
-  ]
+  ],
+  "devDependencies": {
+    "@tsconfig/node22": "^22.0.2"
+  }
 }

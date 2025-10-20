@@ -1,16 +1,14 @@
-/*
- * For a detailed explanation regarding each configuration property and type check, visit:
- * https://jestjs.io/docs/configuration
- */
+import type { Config } from 'jest'
+import { createDefaultEsmPreset } from 'ts-jest'
+
+const presetConfig = createDefaultEsmPreset({
+})
 
 export default {
-    transform: {
-        '^.+\\.ts?$': 'ts-jest',
-    },
+    ...presetConfig,
     clearMocks: true,
     collectCoverage: true,
     coverageDirectory: 'coverage',
     coverageProvider: 'v8',
     testMatch: ['**.test.ts'],
-    // setupFiles: ['./tests/setEnvVars.js'],
-};
+} satisfies Config

@@ -3,8 +3,5 @@
   "compilerOptions": {
     "rootDir": "./src",
     "outDir": "dist",
-    "module": "CommonJS",
-    "lib": ["es2015", "es2022.error"],
-    "target": "es2015",
   },
 }

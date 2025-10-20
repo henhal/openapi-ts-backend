@@ -3,7 +3,5 @@
   "compilerOptions": {
     "rootDir": "./src",
     "noEmit": true,
-    "target": "es2015",
-    "lib": ["es2015"],
   },
 }
