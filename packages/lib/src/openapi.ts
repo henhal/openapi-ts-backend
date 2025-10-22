@@ -21,6 +21,7 @@ import {
   StringParams,
 } from './types';
 import {
+  customizeAjv,
   formatArray,
   formatValidationError,
   getAjv,
@@ -334,8 +335,8 @@ export class OpenApi<T> {
           // Remove additional properties on response body only
           ajv.opts.removeAdditional = this.responseBodyTrimming === 'none' ? false : this.responseBodyTrimming;
         }
-        // Invoke custom function as well if applicable
-        return ajv;
+
+        return customizeAjv(ajv);
       }
     }, operations, authorizers));
 
