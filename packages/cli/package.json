@@ -1,7 +1,7 @@
 {
   "name": "@a-labs-io/openapi-ts-backend-cli",
   "main": "src/cli.ts",
-  "version": "3.0.1",
+  "version": "3.0.2",
   "bin": {
     "openapi-ts-backend": "dist/cli.js"
   },
