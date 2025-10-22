@@ -1,5 +1,5 @@
-import Ajv, {ErrorObject, Options as AjvOptions} from 'ajv';
-import addFormats from 'ajv-formats'
+import Ajv, {ErrorObject, Options as AjvOptions, } from 'ajv';
+import addFormats, {type FormatsPluginOptions} from 'ajv-formats'
 import {OpenAPIV3_1} from 'openapi-types';
 import {OneOrMany} from '@openapi-ts/request-types';
 import {Operation} from "openapi-backend";
@@ -54,8 +54,12 @@ export function getParametersSchema(
   return result as OpenAPIV3_1.SchemaObject;
 }
 
-export function getAjv(ajvOptions?: AjvOptions) {
-  return addFormats(new Ajv(ajvOptions));
+export function customizeAjv (ajv: Ajv, opts: FormatsPluginOptions = {}): Ajv {
+  return addFormats(ajv, opts);
+}
+
+export function getAjv(ajvOptions?: AjvOptions): Ajv {
+  return customizeAjv(new Ajv(ajvOptions));
 }
 
 // Note that errors is an out parameter
