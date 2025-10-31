@@ -35,7 +35,7 @@ import {
 } from './utils';
 import {createLogger, Logger, LogLevel} from './logger';
 
-type FailStrategy = 'warn' | 'throw';
+type ResponseValidationStrategy = 'warn' | 'throw';
 type ResponseTrimming = 'none' | 'failing' | 'all';
 
 type HandlerData<P> = {
@@ -69,7 +69,7 @@ function isRawRequest(req: any): req is RawRequest {
 export interface Options<T> {
   errorHandler?: ErrorHandler<T>;
   logger?: Logger | null;
-  responseValidationStrategy?: FailStrategy;
+  responseValidationStrategy?: ResponseValidationStrategy;
   responseBodyTrimming?: ResponseTrimming;
   ajvOptions?: Ajv.Options;
 }
@@ -88,7 +88,7 @@ export class OpenApi<T> {
 
   readonly errorHandler: ErrorHandler<T>;
   readonly logger: Logger;
-  readonly responseValidationStrategy: FailStrategy;
+  readonly responseValidationStrategy: ResponseValidationStrategy;
   readonly responseBodyTrimming: ResponseTrimming;
   readonly ajvOptions?: Ajv.Options;
 
@@ -290,13 +290,13 @@ export class OpenApi<T> {
   protected handleValidationErrors(
       errors: Ajv.ErrorObject[] | null | undefined,
       title: string,
-      strategy: FailStrategy): void {
+      strategy: ResponseValidationStrategy): void {
     if (errors?.length) {
       this.fail(`${title}: ${formatArray(errors, formatValidationError)}`, strategy);
     }
   }
 
-  protected fail(message: string, strategy: FailStrategy): void {
+  protected fail(message: string, strategy: ResponseValidationStrategy): void {
     if (strategy === 'throw') {
       throw new Error(message);
     }
