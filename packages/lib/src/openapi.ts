@@ -35,7 +35,7 @@ import {
 } from './utils';
 import {createLogger, Logger, LogLevel} from './logger';
 
-type ResponseValidationStrategy = 'warn' | 'throw';
+type ResponseValidationStrategy = 'warn' | 'throw' | 'none';
 type ResponseTrimming = 'none' | 'failing' | 'all';
 
 type HandlerData<P> = {
@@ -260,7 +260,9 @@ export class OpenApi<T> {
       // If status code is not specified and a non-ambiguous default status code is available, use it
       res.statusCode = res.statusCode ?? this.getDefaultStatusCode(operation);
 
-      this.validateResponse(apiContext, res);
+      if (this.responseValidationStrategy !== 'none') {
+          this.validateResponse(apiContext, res);
+      }
     };
   }
 
