@@ -12,6 +12,7 @@ function formatOperationName(request: RawRequest) {
 export abstract class ApiError extends Error {
   protected constructor(readonly request: RawRequest, message?: string) {
     super(message);
+    this.name = this.constructor.name;
   }
 }
 
