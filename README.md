@@ -145,7 +145,7 @@ paths:
 
 To generate TypeScript types for all requests and operation handlers, an executable is provided:
 ```
-$ npx openapi-ts-backend generate-types greet-api.yml src/gen/greet-api
+$ npx @openapi-ts/cli generate-types greet-api.yml src/gen/greet-api
 ...
 Using TypeScript v4.2.3
 Types written to src/gen/greet-api
