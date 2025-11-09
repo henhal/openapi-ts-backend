@@ -2,7 +2,7 @@
   "name": "test",
   "scripts": {
     "pretest": "npm -w ../lib run build && openapi-ts-backend generate-types api.yml src/gen",
-    "test": "LOG_LEVEL=${LOG_LEVEL:=error} jest"
+    "test": "tsc && LOG_LEVEL=${LOG_LEVEL:=error} jest"
   },
   "devDependencies": {
     "@openapi-ts/cli": "*",

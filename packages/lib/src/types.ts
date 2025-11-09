@@ -103,9 +103,8 @@ export type RequestHandler<P = unknown,
     Req extends Request = Request,
     Res extends Response = Response> = (
         req: Req,
-        res: Res,
-        params: P) => Awaitable<Res['body'] | void>;
-
+        res: Response,
+        params: P) => Awaitable<Res | void>;
 
 type SecuritySchemeObject = OpenAPIV3_1.SecuritySchemeObject | OpenAPIV3.SecuritySchemeObject;
 /**

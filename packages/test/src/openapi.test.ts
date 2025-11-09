@@ -1,4 +1,4 @@
-import {HttpError, OpenApi} from "@openapi-ts/backend";
+import {HttpError, json, OpenApi} from "@openapi-ts/backend";
 import { OperationHandlers} from './gen';
 
 function greet(title: string, name: string): string {
@@ -13,23 +13,43 @@ const operations: OperationHandlers<unknown> = {
   greet: req => {
     const {params: {name}, query: {title = ''}} = req;
 
-    return {
-      message: greet(title, name),
-    };
+    return json({ message: greet(title, name)})
   },
   addPerson: req => {
-    return req.body.person;
+    return json(req.body.person, 201);
   },
   getTypes: req => {
-    return {
+    return json({
       params: getTypeMap(req.params),
       headers: getTypeMap(req.headers),
       query: getTypeMap(req.query),
       cookies: getTypeMap(req.cookies),
-    }
+    })
   },
   deletePerson: () => {
     return;
+  },
+  multiResponse: (req) => {
+    if (req.query.type === '') {
+        return {
+            statusCode: 404,
+            body: {},
+            headers: {
+                'Content-Type': 'application/json',
+                'Additional-Header': 'somethingelse'
+            }
+        }
+    }
+    if (req.query.type === 'html') {
+        return {
+            statusCode: 200,
+            body: 'htmlContent',
+            headers: {
+                'Content-Type': 'text/html'
+            }
+        }
+    }
+    return json({ okBody: 1337 })
   }
 };
 
