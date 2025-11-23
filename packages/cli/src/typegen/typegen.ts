@@ -17,7 +17,10 @@ function write(dirName: string, fileName: string, data: string) {
 async function createSpecTypes(specPath: string, outputDir: string) {
   const absolutePath = path.resolve(specPath);
   const url = pathToFileURL(absolutePath)
-  const ast = await openapiTS(url);
+
+  const ast = await openapiTS(url, {
+      makeParametersWithDefaultNotUndefined: true
+  });
   const ts = astToString(ast);
 
   return write(outputDir, 'spec.ts', ts);

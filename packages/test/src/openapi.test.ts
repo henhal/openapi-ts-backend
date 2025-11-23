@@ -11,7 +11,7 @@ function getTypeMap(obj: any) {
 
 const operations: OperationHandlers<unknown> = {
   greet: req => {
-    const {params: {name}, query: {title = ''}} = req;
+    const {params: {name}, query: {title}} = req;
 
     return {
       message: greet(title, name),
@@ -61,6 +61,19 @@ describe('API tests', () => {
       }
     });
     expect(res.statusCode).toEqual(200);
+    expect(res.body).toEqual({message: 'Hello, Mr John Doe'})
+  });
+
+  it('Should set default values for parameters automatically', async () => {
+      const res = await api.handleRequest({
+          method: 'GET',
+          path: '/greet/Jane%20Doe',
+          headers: {
+              authorization: 'true',
+          }
+      });
+      expect(res.statusCode).toEqual(200);
+      expect(res.body).toEqual({message: 'Hello, Mrs Jane Doe'})
   });
 
   it('Should handle a valid request with implicit status 201', async () => {

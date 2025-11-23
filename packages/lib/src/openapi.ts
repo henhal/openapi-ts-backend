@@ -137,16 +137,34 @@ export class OpenApi<T> {
     return api;
   }
 
+  protected injectDefaults(parsed: Params, parameterMap: Record<string, OpenAPIV3_1.ParameterBaseObject>): Params {
+    for (const [name, p] of Object.entries(parameterMap)) {
+      if (p.schema === undefined) {
+          continue
+      }
+      if ("$ref" in p.schema) {
+          throw new Error('this should never happen, schema should be dereferenced by openapi-backend')
+      }
+      if (p.schema.default !== undefined && parsed[name] === undefined) {
+          parsed[name] = p.schema.default
+      }
+    }
+    return parsed;
+  }
+
   protected parseParams(rawParams: StringParams,
                         operation: OpenAPI.Operation,
                         type: ParameterType,
                         errors: Ajv.ErrorObject[]): Params {
+    const parameterMap = getParameterMap(operation, type)
     // This is mostly used to coerce types, which openapi-backend does internally but then throws away
-    return matchSchema<StringParams, Params>(
+    const parsed = matchSchema<StringParams, Params>(
         this.paramValidator,
         rawParams,
-        getParametersSchema(getParameterMap(operation, type)),
+        getParametersSchema(parameterMap),
         errors);
+
+    return this.injectDefaults(parsed, parameterMap)
   }
 
   protected parseRequest(apiContext: OpenAPI.Context): Request {
