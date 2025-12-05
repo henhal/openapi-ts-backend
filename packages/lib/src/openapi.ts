@@ -1,7 +1,7 @@
 import * as Ajv from 'ajv';
 import * as OpenAPI from 'openapi-backend';
 import {ValidationContext} from 'openapi-backend';
-import {OpenAPIV3} from 'openapi-types';
+import {OpenAPIV3_1} from 'openapi-types';
 
 import * as Errors from './errors';
 import {
@@ -21,6 +21,7 @@ import {
   StringParams,
 } from './types';
 import {
+  customizeAjv,
   formatArray,
   formatValidationError,
   getAjv,
@@ -206,12 +207,14 @@ export class OpenApi<T> {
         try {
           results[name] = await authorizers[name](req, res, operationParams, {
             name,
-            scheme: definition.components?.securitySchemes?.[name] as OpenAPIV3.SecuritySchemeObject,
+            scheme: definition.components?.securitySchemes?.[name] as OpenAPIV3_1.SecuritySchemeObject,
             parameters: {scopes}
           });
         } catch (error) {
           authorized = false;
-          errors.push(error);
+
+          const theError = error instanceof Error ? error : new Error('Unknown error', {cause: error})
+          errors.push(theError);
         }
       }
 
@@ -330,10 +333,10 @@ export class OpenApi<T> {
       customizeAjv: (ajv, ajvOpts, validationContext) => {
         if (validationContext === ValidationContext.Response) {
           // Remove additional properties on response body only
-          ajv._opts.removeAdditional = this.responseBodyTrimming === 'none' ? false : this.responseBodyTrimming;
+          ajv.opts.removeAdditional = this.responseBodyTrimming === 'none' ? false : this.responseBodyTrimming;
         }
-        // Invoke custom function as well if applicable
-        return ajv;
+
+        return customizeAjv(ajv);
       }
     }, operations, authorizers));
 
@@ -411,9 +414,10 @@ export class OpenApi<T> {
     try {
       await this.routeRequest(req, res, params);
     } catch (err) {
-      this.logger.warn(`Error: ${id}: "${err.name}: ${err.message}"`);
+        const theError = err instanceof Error ? err : new Error('Unknown error', {cause: err})
+        this.logger.warn(`Error: ${id}: "${theError.name}: ${theError.message}"`);
 
-      await this.errorHandler(req, res, params, err);
+        await this.errorHandler(req, res, params, theError);
     }
 
     res.statusCode = res.statusCode ?? 500;

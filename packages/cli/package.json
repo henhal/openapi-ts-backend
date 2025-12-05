@@ -1,0 +1,21 @@
+{
+  "name": "@openapi-ts/cli",
+  "main": "src/cli.ts",
+  "version": "3.0.1",
+  "bin": {
+    "openapi-ts-backend": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "postbuild": "chmod u+x dist/cli.js"
+  },
+  "dependencies": {
+    "openapi-typescript": "^7.9.1"
+  },
+  "peerDependencies": {
+    "typescript": "^5.9.3"
+  },
+  "files": [
+    "dist"
+  ]
+}

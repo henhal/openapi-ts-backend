@@ -1,12 +1,10 @@
-import * as yaml from 'js-yaml';
-import generateOpenApiTypes from 'openapi-typescript';
-import {readFileSync, writeFileSync, mkdirSync, existsSync} from 'fs';
+import openapiTS, { astToString } from "openapi-typescript";
+import {writeFileSync, mkdirSync, existsSync} from 'fs';
 import path from 'path';
 
 import {getApiOperationIds} from './parser';
 import * as templates from './templates';
-
-const YAML_EXTENSION = /\.ya?ml$/;
+import {pathToFileURL} from "node:url";
 
 function write(dirName: string, fileName: string, data: string) {
   const outputPath = path.resolve(dirName, fileName);
@@ -17,10 +15,10 @@ function write(dirName: string, fileName: string, data: string) {
 }
 
 async function createSpecTypes(specPath: string, outputDir: string) {
-  const raw = readFileSync(specPath).toString();
-  const schema = (YAML_EXTENSION.test(specPath)) ? yaml.load(raw) : JSON.parse(raw);
-
-  const ts = generateOpenApiTypes(schema);
+  const absolutePath = path.resolve(specPath);
+  const url = pathToFileURL(absolutePath)
+  const ast = await openapiTS(url);
+  const ts = astToString(ast);
 
   return write(outputDir, 'spec.ts', ts);
 }

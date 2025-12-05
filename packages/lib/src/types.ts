@@ -2,7 +2,8 @@ import * as OpenAPI from "openapi-backend";
 
 import {Request, Response, StringParams} from '@openapi-ts/request-types';
 import {OpenApi} from './openapi';
-import {OpenAPIV3} from 'openapi-types';
+import {Document, Operation} from "openapi-backend";
+import {OpenAPIV3, OpenAPIV3_1} from "openapi-types";
 
 export * from '@openapi-ts/request-types';
 
@@ -72,8 +73,8 @@ export type Interceptor<T> = (
  * The params provided to request handlers
  */
 export type OperationParams<T = unknown> = RequestParams<T> & {
-  operation: OpenAPIV3.OperationObject;
-  definition: OpenAPIV3.Document;
+  operation: Operation;
+  definition: Document;
   security: {
     results: Record<string, unknown>;
   };
@@ -105,12 +106,14 @@ export type RequestHandler<P = unknown,
         res: Res,
         params: P) => Awaitable<Res['body'] | void>;
 
+
+type SecuritySchemeObject = OpenAPIV3_1.SecuritySchemeObject | OpenAPIV3.SecuritySchemeObject;
 /**
  * A security requirement to be fulfilled by an authorizer
  */
 export type SecurityRequirement = {
   name: string;
-  scheme: OpenAPIV3.SecuritySchemeObject;
+  scheme: SecuritySchemeObject;
   parameters: {
     scopes?: string[];
   };

@@ -1,7 +1,5 @@
-import {OpenApi} from '../openapi';
-
-import {OperationHandlers} from './gen';
-import {HttpError} from '../errors';
+import {HttpError, OpenApi} from "@openapi-ts/backend";
+import { OperationHandlers} from './gen';
 
 function greet(title: string, name: string): string {
   return `Hello, ${title}${title ? ' ' : ''}${name}`;
@@ -30,7 +28,7 @@ const operations: OperationHandlers<unknown> = {
       cookies: getTypeMap(req.cookies),
     }
   },
-  deletePerson: req => {
+  deletePerson: () => {
     return;
   }
 };
@@ -38,7 +36,7 @@ const operations: OperationHandlers<unknown> = {
 describe('API tests', () => {
   const api = new OpenApi()
       .register({
-        definition: './src/test/api.yml',
+        definition: './api.yml',
         operations,
         authorizers: {
           AccessToken: req => {
@@ -144,6 +142,6 @@ describe('API tests', () => {
     expect(res.statusCode).toEqual(400);
     const errors = (res.body as any)?.data?.errors;
     expect(errors).toBeDefined();
-    expect(errors[0].message).toContain('should be number');
+    expect(errors[0].message).toContain('/path/foo must be number');
   });
 });

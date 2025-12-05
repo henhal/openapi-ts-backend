@@ -1,18 +1,11 @@
-import Ajv, {ErrorObject, Options as AjvOptions} from 'ajv';
-import addFormats from 'ajv-formats'
-import {OpenAPIV3} from 'openapi-types';
+import Ajv, {ErrorObject, Options as AjvOptions, } from 'ajv';
+import addFormats, {type FormatsPluginOptions} from 'ajv-formats'
+import {OpenAPIV3_1} from 'openapi-types';
 import {OneOrMany} from '@openapi-ts/request-types';
-
-// The "not a function restriction" solves TS2349 and enables using typeof === 'function' to determine if T is callable.
-// eslint-disable-next-line @typescript-eslint/ban-types
-export type Resolvable<T> = T extends Function ? never : T | (() => T);
-
-export function resolve<T>(resolvable: Resolvable<T>): T {
-  return typeof resolvable === 'function' ? resolvable() : resolvable;
-}
+import {Operation} from "openapi-backend";
 
 export function formatValidationError(error: ErrorObject): string {
-  return `At '${error.dataPath}': ${Object.entries(error.params)
+  return `At '${error.instancePath}': ${Object.entries(error.params)
       .map(([k, v]) => `${k}: ${JSON.stringify(v)}`)
       .join(', ')}`;
 }
@@ -24,10 +17,10 @@ export function formatArray<T>(items: T[], formatter: (item: T) => string, prefi
 export type ParameterType = 'header' | 'query' | 'path' | 'cookie';
 
 export function getParameterMap(
-    {parameters = []}: OpenAPIV3.OperationObject,
+    {parameters = []}: Operation,
     type: ParameterType
-): Record<string, OpenAPIV3.ParameterBaseObject> {
-  const result: Record<string, OpenAPIV3.ParameterBaseObject> = {};
+): Record<string, OpenAPIV3_1.ParameterBaseObject> {
+  const result: Record<string, OpenAPIV3_1.ParameterBaseObject> = {};
 
   for (const parameter of parameters) {
     if ('in' in parameter && parameter.in === type) {
@@ -39,8 +32,8 @@ export function getParameterMap(
 }
 
 export function getParametersSchema(
-    parameters: Record<string, OpenAPIV3.ParameterBaseObject>
-): OpenAPIV3.SchemaObject {
+    parameters: Record<string, OpenAPIV3_1.ParameterBaseObject>
+): OpenAPIV3_1.SchemaObject {
   const result = {
     type: 'object',
     required: [] as string[],
@@ -58,18 +51,22 @@ export function getParametersSchema(
     }
   }
 
-  return result as OpenAPIV3.SchemaObject;
+  return result as OpenAPIV3_1.SchemaObject;
 }
 
-export function getAjv(ajvOptions?: AjvOptions) {
-  return addFormats(new Ajv(ajvOptions));
+export function customizeAjv (ajv: Ajv, opts: FormatsPluginOptions = {}): Ajv {
+  return addFormats(ajv, opts);
+}
+
+export function getAjv(ajvOptions?: AjvOptions): Ajv {
+  return customizeAjv(new Ajv(ajvOptions));
 }
 
 // Note that errors is an out parameter
 export function matchSchema<T, U>(
     ajv: Ajv,
     source: Readonly<T>,
-    schema: OpenAPIV3.SchemaObject,
+    schema: OpenAPIV3_1.SchemaObject,
     errors: ErrorObject[]): U {
   // Ajv mutates the passed object so we pass a copy
   const result = cloneObject(source);

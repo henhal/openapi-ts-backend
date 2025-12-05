@@ -1,33 +1,21 @@
 {
-  "name": "@openapi-ts/backend",
-  "version": "2.0.5",
-  "description": "",
-  "bin": {
-    "openapi-ts-backend": "dist/tools/cli.js"
-  },
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "name": "openapi-ts-backend",
+  "private": true,
   "homepage": "https://github.com/henhal/openapi-ts-backend#readme",
   "bugs": {
     "url": "https://github.com/henhal/openapi-ts-backend/issues"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/henhal/openapi-ts-backend"
+    "url": "git+https://github.com/henhal/openapi-ts-backend.git"
   },
   "scripts": {
-    "build": "tsc",
-    "clean": "rm -rf dist && rm -f tsconfig.tsbuildinfo",
-    "lint": "eslint src --ext js,ts --max-warnings 0",
-    "postbuild": "chmod u+x dist/tools/cli.js",
-    "prepublish": "yarn clean && yarn build && yarn test",
-    "prebuild": "rm -rf src/test/gen",
-    "pretest": "MODULE_PATH=../.. ts-node src/tools/cli.ts generate-types src/test/api.yml src/test/gen",
-    "test": "NODE_PATH=src LOG_LEVEL=${LOG_LEVEL:=error} jest --config src/test/jest.config.js"
+    "lint": "eslint src --ext js,ts --max-warnings 0"
   },
   "author": "henrik.hall2@gmail.com",
   "files": [
-    "dist/"
+    "dist/",
+    "README.md"
   ],
   "keywords": [
     "openapi",
@@ -46,31 +34,14 @@
     "lambda"
   ],
   "dependencies": {
-    "@openapi-ts/request-types": "^1.0.5",
-    "ajv": "^7.1.1",
-    "ajv-formats": "^2.0.1",
-    "js-yaml": "^4.0.0",
-    "loglevel": "^1.7.1",
-    "openapi-backend": "^3.9.0",
-    "openapi-types": "^7.2.3",
-    "openapi-typescript": "^3.0.1"
+    "typescript": "^5.9.3"
   },
+  "workspaces": [
+    "packages/lib",
+    "packages/cli",
+    "packages/test"
+  ],
   "devDependencies": {
-    "@types/jest": "^26.0.20",
-    "@types/js-yaml": "^4.0.0",
-    "@types/node": "^14.14.31",
-    "@typescript-eslint/eslint-plugin": "^4.17.0",
-    "@typescript-eslint/parser": "^4.17.0",
-    "eslint": "^7.21.0",
-    "jest": "^26.6.3",
-    "ts-jest": "^26.5.3",
-    "ts-node": "^9.1.1",
-    "typescript": ">=3"
-  },
-  "peerDependencies": {
-    "typescript": ">=3"
-  },
-  "publishConfig": {
-    "access": "public"
+    "@tsconfig/node22": "^22.0.2"
   }
 }
