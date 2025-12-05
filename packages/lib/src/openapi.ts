@@ -254,8 +254,10 @@ export class OpenApi<T> {
 
       // Note: The handler function may modify the "res" object and/or return a response body.
       // If "res.body" is undefined we use the return value as the body.
-      const resBody = await operationHandler(req, res, operationParams);
-      res.body = res.body ?? resBody;
+      const returnedResponse = await operationHandler(req, res, operationParams);
+      if (returnedResponse !== undefined) {
+        Object.assign(res, returnedResponse);
+      }
 
       // If status code is not specified and a non-ambiguous default status code is available, use it
       res.statusCode = res.statusCode ?? this.getDefaultStatusCode(operation);

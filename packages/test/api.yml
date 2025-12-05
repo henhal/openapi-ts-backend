@@ -152,6 +152,37 @@ paths:
               schema:
                 type: object
                 additionalProperties: true
+  '/multiresponse':
+    get:
+      operationId: multiResponse
+      summary: test multiple possible responses
+      parameters:
+        - in: query
+          name: type
+          schema:
+            type: string
+
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  okBody:
+                    type: number
+            text/html:
+              schema:
+                type: string
+
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                type: object
+
 
 
 

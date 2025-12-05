@@ -17,12 +17,25 @@ export type Property<T, K extends keyof any, D = unknown> =
 export type ValueOf<T, D = never> = T extends Record<string, unknown> ? T[keyof T] : D;
 
 export type EmptyObject = Record<never, never>;
+
+export type StatusCode<Status> =
+    Status extends '4XX' ? FourXX :
+        Status extends '5XX' ? FiveXX :
+            Status extends number ? Status :
+                Status extends \`\${infer N extends number}\` ? N :
+                    never;
+
+export type FourXX = 400 | 401 | 402 | 403 | 404 | 405 | 406 | 407 | 408 | 409 |
+    410 | 411 | 412 | 413 | 414 | 415 | 416 | 417 | 418 | 421 |
+    422 | 423 | 424 | 425 | 426 | 428 | 429 | 431 | 451;
+
+export type FiveXX = 500 | 501 | 502 | 503 | 504 | 505 | 506 | 507 | 508 | 510 | 511;
 `;
 
 export const requests = `
-import {Params, Request, Response} from '@openapi-ts/request-types';
+import {Params, Request} from '@openapi-ts/request-types';
 import {operations} from './spec';
-import {EmptyObject, Property, ValueOf} from './utils';
+import {EmptyObject, Property, ValueOf, StatusCode} from './utils';
 
 export type RequestBody<OperationId extends keyof operations> =
     operations[OperationId] extends {requestBody: Record<string, any>} ?
@@ -38,8 +51,23 @@ export type RequestQuery<OperationId extends keyof operations> =
 export type RequestHeaders<OperationId extends keyof operations> =
     Property<Property<operations[OperationId], 'parameters', EmptyObject>, 'header', EmptyObject>;
 
-export type ResponseBody<OperationId extends keyof operations> =
-    ValueOf<Property<ValueOf<Property<operations[OperationId], 'responses', EmptyObject>>, 'content'>, void>;
+export type OperationResponse<OpName extends keyof operations> = {
+    [Status in keyof operations[OpName]['responses']]:
+    operations[OpName]['responses'][Status] extends {
+            content: infer Content;
+        }
+        ? {
+            [CT in keyof Content]: {
+                statusCode: StatusCode<Status>;
+                headers: { 'Content-Type': CT };
+                body: Content[CT];
+            }
+        }[keyof Content]
+        : {
+            statusCode: StatusCode<Status>;
+            headers: EmptyObject;
+        };
+}[keyof operations[OpName]['responses']]
 
 export type ResponseHeaders<OperationId extends keyof operations> =
     Property<ValueOf<Property<operations[OperationId], 'responses', EmptyObject>>, 'headers'>;
@@ -49,10 +77,6 @@ export type OperationRequest<OperationId extends keyof operations> = Request<
     Params & RequestPathParams<OperationId>,
     Params & RequestQuery<OperationId>,
     Params & RequestHeaders<OperationId>>;
-
-export type OperationResponse<OperationId extends keyof operations> = Response<
-    ResponseBody<OperationId>,
-    Params & ResponseHeaders<OperationId>>;
 `;
 
 export const handlers = `
