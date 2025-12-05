@@ -10,7 +10,7 @@
     "postbuild": "chmod u+x dist/cli.js"
   },
   "dependencies": {
-    "openapi-typescript": "^7.9.1"
+    "openapi-typescript": "https://github.com/luqasn/openapi-typescript/releases/download/v7.11.1-preview/openapi-typescript-7.11.1-preview.tgz"
   },
   "peerDependencies": {
     "typescript": "^5.9.3"

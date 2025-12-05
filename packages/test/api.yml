@@ -20,6 +20,7 @@ components:
   schemas:
     Title:
       type: string
+      default: Mrs
       enum:
         - Mr
         - Mrs
